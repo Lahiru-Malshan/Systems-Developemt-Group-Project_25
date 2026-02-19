@@ -53,7 +53,6 @@ class BaseDashboard(ft.Container):
                     ft.Row(
                         spacing=15,
                         controls=[
-                            ft.IconButton(ft.Icons.NOTIFICATIONS_OUTLINED, icon_color=TEXT_DARK),
                             ft.IconButton(ft.Icons.HELP_OUTLINE, icon_color=TEXT_DARK),
                         ]
                     )

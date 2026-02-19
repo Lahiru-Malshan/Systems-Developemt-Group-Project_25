@@ -1,5 +1,6 @@
 import sys
 import os
+from turtle import color
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 # Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
 
@@ -39,51 +40,37 @@ def show_residents(dash, *args):
                     ft.Text("15", size=13, weight="bold", color=ft.Colors.ORANGE_700),
                 ], spacing=5)
             ], spacing=15),
-
-            ft.Button(
-                content=ft.Row([
-                    ft.Icon(ft.Icons.PERSON_ADD_ROUNDED, color="white", size=20),
-                    ft.Text("Add New Resident", weight="bold", color="white"),
-                ], tight=True),
-                bgcolor=ACCENT_BLUE,
-                on_click=lambda _: draw_resident_registration(dash)
-            )
+            
         ], alignment="spaceBetween")
     )
 
     # --- 2. SEARCH & FILTER SECTION ---
     search_box = ft.TextField(
-        label="Search by Room, Name or Phone...",
-        prefix_icon=ft.Icons.SEARCH,
-        expand=True,
-        border_radius=10,
-        bgcolor="white",
-        on_submit=lambda e: dash.show_message(f"Searching for: {e.control.value}")
+        label="Search residents...", prefix_icon=ft.Icons.SEARCH,
+        expand=True, border_radius=10, bgcolor="white", color=TEXT_DARK,
     )
 
-    filter_row = ft.Row([
-        search_box,
-        ft.Dropdown(
-            width=200,
-            label="Block",
-            options=[ft.dropdown.Option("All Blocks"), ft.dropdown.Option("Block A"), ft.dropdown.Option("Block B")],
-            border_radius=10,
-        ),
-    ])
-
+    filter_bar = ft.Container(
+        padding=10,
+        content=ft.Row([
+            search_box,
+            ft.Dropdown(width=150, label="Block",color=TEXT_DARK, options=[ft.dropdown.Option("All"), ft.dropdown.Option("A"), ft.dropdown.Option("B")]),
+            ft.Button("Add Resident", icon=ft.Icons.ADD, bgcolor=ACCENT_BLUE, color="white",on_click=lambda _: draw_resident_registration(dash))
+        ], spacing=15)
+    )
+    
     # --- 3. RESIDENT TABLE ---
     rows = []
-    for room, name, res_type, contact in test_residents_data:
-        rows.append(_create_resident_row(dash, room, name, res_type, contact))
+    for r in test_residents_data:
+        rows.append(_create_resident_row(dash, *r))
         
-    resident_list_container = ft.Container(
-        bgcolor=CARD_BG,
-        padding=20,
-        border_radius=12,
-        expand=True,
-        content=ft.Column([
+    table_card = ft.Container(
+        bgcolor=CARD_BG, padding=20, border_radius=12, expand=7,content=ft.Column([
             ft.DataTable(
                 expand=True,
+                column_spacing=30,
+                heading_row_color=ft.Colors.BLUE_GREY_50,
+                heading_row_height=55,
                 columns=[
                     ft.DataColumn(ft.Text("Room", weight="bold", color=TEXT_DARK)),
                     ft.DataColumn(ft.Text("Full Name", weight="bold", color=TEXT_DARK)),
@@ -95,7 +82,36 @@ def show_residents(dash, *args):
             )
         ], scroll=ft.ScrollMode.AUTO)
     )
-    dash.content_column.controls.extend([header, filter_row, resident_list_container])
+    
+    side_panel = ft.Container(
+        bgcolor=CARD_BG, padding=20, border_radius=12, expand=3,
+        content=ft.Column([
+            ft.Text("Demographics", size=18, weight="bold", color=TEXT_DARK),
+            ft.Divider(),
+            ft.Container(
+                height=150, bgcolor=ft.Colors.BLUE_GREY_50, border_radius=10,
+                alignment=ft.Alignment(0, 0),
+                content=ft.Text("Chart / Composition Area", color=TEXT_MUTED)
+            ),
+            ft.Column([
+                ft.ListTile(
+                    leading=ft.Icon(ft.Icons.PERSON_OUTLINE, size=20, color=ACCENT_BLUE),
+                    title=ft.Text(r[1], size=13, weight="bold", color=TEXT_DARK),
+                    subtitle=ft.Text(f"Room {r[0]}", size=11, color=TEXT_MUTED),
+                    dense=True
+                ) for r in test_residents_data[:3]
+            ], spacing=5)
+        ], spacing=15)
+    )
+    
+    main_layout = ft.Row(
+        controls=[table_card, side_panel],
+        spacing=20,
+        vertical_alignment="start",
+        expand=True
+    )
+
+    dash.content_column.controls.extend([header, filter_bar, main_layout])
     dash.page.update()
 
 def draw_resident_registration(dash, *args):
@@ -107,11 +123,12 @@ def draw_resident_registration(dash, *args):
     ref_email = ft.TextField(label="Email Address", expand=True, border_radius=8, color=TEXT_DARK)
     ref_phone = ft.TextField(label="Phone Number", expand=True, border_radius=8, color=TEXT_DARK)
     ref_dob = ft.TextField(label="Date of Birth", expand=True, border_radius=8, hint_text="DD/MM/YYYY", color=TEXT_DARK)
-    ref_id = ft.TextField(label="ID / Passport Number", expand=True, border_radius=8)
+    ref_id = ft.TextField(label="ID / Passport Number", expand=True, border_radius=8, color=TEXT_DARK)
     ref_type = ft.Dropdown(
         label="Resident Type",
         expand=True,
         border_radius=8,
+        color=TEXT_DARK,
         options=[
             ft.dropdown.Option("Owner"),
             ft.dropdown.Option("Tenant"),
@@ -185,20 +202,23 @@ def handle_save_resident(dash, block, room, name, phone, res_type):
         dash.show_message(f"Registration failed: {str(e)}")
 
 def _create_resident_row(dash, room, name, res_type, contact):
-    type_color = ACCENT_BLUE if res_type == "Owner" else ft.Colors.ORANGE_700
+    display_type = str(res_type) if res_type else "UNKNOWN"
+    
+    type_color = ACCENT_BLUE if res_type == "Owner" else ft.Colors.ORANGE_700,
+    masked_contact = f"{contact[:2]}****{contact[-3:]}" if len(contact) > 5 else contact
     return ft.DataRow(
         cells=[
-            ft.DataCell(ft.Text(room, color=TEXT_DARK, weight="w500")),
+            ft.DataCell(ft.Text(room, color=TEXT_DARK, weight="bold")),
             ft.DataCell(ft.Text(name, color=TEXT_DARK, weight="w500")),
             ft.DataCell(
                 ft.Container(
-                    content=ft.Text(res_type, size=11, weight="bold", color="white"),
+                    content=ft.Text(display_type.upper(), size=10, weight="bold", color="white"),
                     bgcolor=type_color,
-                    padding=ft.padding.symmetric(horizontal=10, vertical=2),
-                    border_radius=5
+                    padding=ft.padding.symmetric(horizontal=10, vertical=4),
+                    border_radius=15
                 )
             ),
-            ft.DataCell(ft.Text(contact, color=TEXT_DARK)),
+            ft.DataCell(ft.Text(masked_contact, color=TEXT_DARK)),
             ft.DataCell(
                 ft.Row([
                     ft.IconButton(ft.Icons.EDIT_OUTLINED, icon_color=ACCENT_BLUE, icon_size=18, tooltip="Edit"),

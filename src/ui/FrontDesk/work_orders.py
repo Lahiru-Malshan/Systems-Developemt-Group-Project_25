@@ -23,6 +23,9 @@ test_work_orders = [
 def show_work_orders(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
+    
+    status_order = {"Pending": 0, "In Progress": 1, "Assigned": 2, "Completed": 3}
+    test_work_orders.sort(key=lambda x: (status_order.get(x[5], 99), x[6]), reverse=False)
 
     # --- 1. HEADER ---
     header = ft.Container(
@@ -41,10 +44,14 @@ def show_work_orders(dash, *args):
     )
 
     # --- 2. STATS ---
+    pending_cnt = len([o for o in test_work_orders if o[5] == "Pending"])
+    progress_cnt = len([o for o in test_work_orders if o[5] in ["In Progress", "Assigned"]])
+    completed_cnt = len([o for o in test_work_orders if o[5] == "Completed"])
+    
     order_stats = ft.Row([
-        dash.create_stat_card("Pending", "1", ft.Icons.PENDING_ACTIONS_ROUNDED),
-        dash.create_stat_card("In Progress", "1", ft.Icons.HANDYMAN_ROUNDED),
-        dash.create_stat_card("Completed", "1", ft.Icons.TASK_ALT_ROUNDED),
+        dash.create_stat_card("Pending", str(pending_cnt), ft.Icons.PENDING_ACTIONS_ROUNDED),
+        dash.create_stat_card("In Progress", str(progress_cnt), ft.Icons.HANDYMAN_ROUNDED),
+        dash.create_stat_card("Completed", str(completed_cnt), ft.Icons.TASK_ALT_ROUNDED),
     ], spacing=20)
 
     # --- 3. LIST VIEW ---
@@ -58,7 +65,7 @@ def show_work_orders(dash, *args):
         border_radius=12,
         expand=True,
         content=ft.Column([
-            ft.TextField(label="Search by Room or Category", prefix_icon=ft.Icons.SEARCH, border_radius=10),
+            ft.TextField(label="Search by Room or Category", prefix_icon=ft.Icons.SEARCH, border_radius=10, color=TEXT_DARK, on_change=lambda e: print("Searching...")),
             ft.Divider(height=10, color="transparent"),
             ft.ListView(controls=order_items, expand=True, spacing=10)
         ])
@@ -85,10 +92,18 @@ def open_create_order_modal(dash):
         
         # Add to our global test list (Mock DB)
         global test_work_orders
-        new_id = f"WO-{len(test_work_orders) + 1:03d}"
-        test_work_orders.append([
-            new_id, ref_room.value, ref_category.value,
-            ref_desc.value, "Medium", "Pending", "2026-02-18"
+        current_date = datetime.now().strftime("%Y-%m-%d")
+
+        try:
+            ids = [int(o[0].split('-')[1]) for o in test_work_orders if '-' in o[0]]
+            next_id = max(ids) + 1 if ids else 1
+        except:
+            next_id = len(test_work_orders) + 1
+
+        new_id = f"WO-{next_id:03d}"
+        
+        test_work_orders.insert(0, [
+            new_id, ref_room.value, ref_category.value if ref_category.value else "General", ref_desc.value, "Medium", "Pending", current_date
         ])
 
         dash.close_dialog()

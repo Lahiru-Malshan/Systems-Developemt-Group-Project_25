@@ -261,8 +261,8 @@ def open_add_card_dialog(dash):
     
     ref_card_num = ft.TextField(label="Card Number", hint_text="0000 0000 0000 0000", border_color=ACCENT_BLUE)
     ref_holder = ft.TextField(label="Card Holder", hint_text="MR J SMITH", border_color=ACCENT_BLUE)
-    ref_exp = ft.TextField(label="Expiry", hint_text="MM/YY", expand=True)
-    ref_cvv = ft.TextField(label="CVV", hint_text="***", expand=True, password=True)
+    ref_exp = ft.TextField(label="Expiry", hint_text="MM/YY", expand=True, border_color=ACCENT_BLUE)
+    ref_cvv = ft.TextField(label="CVV", hint_text="***", expand=True, password=True, border_color=ACCENT_BLUE)
     ref_postcode = ft.TextField(label="Postcode", hint_text="BS1 5TY", border_color=ACCENT_BLUE)
     
     def handle_save_card(e):

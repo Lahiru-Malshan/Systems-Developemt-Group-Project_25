@@ -20,7 +20,7 @@ def show_maintenance(dash, *args):
     if not dash: return
     global maintenance_data
     dash.content_column.controls.clear()
-    # 1. Mock Data
+
     maintenance_data.sort(key=lambda x: x[5], reverse=True)
     
     action_bar = ft.Container(
@@ -121,7 +121,7 @@ def show_maintenance(dash, *args):
                         title=ft.Text(f"Request #{m[0]}", weight="bold", color=TEXT_DARK),
                         subtitle=ft.Text(f"{m[1]} - {m[5]}"),
                     )
-                    for m in maintenance_data
+                    for m in maintenance_data[:5]
                 ]
             )
         ])
@@ -172,7 +172,7 @@ def open_maintenance_form(dash):
                 current_date,
                 "-"
             ]
-            maintenance_data.append(new_record)
+            maintenance_data.insert(0, new_record)
             
             dash.show_message("Success! Request submitted successfully!")
             dash.close_dialog()

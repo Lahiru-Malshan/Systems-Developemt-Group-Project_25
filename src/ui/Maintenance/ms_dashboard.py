@@ -1,0 +1,136 @@
+import sys
+import os
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
+
+from base_dashboard import *
+from work_orders import *
+from settingsStaff import *
+import flet as ft
+
+class MaintenanceDashboard(BaseDashboard):
+    def __init__(self, page: ft.Page, username: str, role_name: str = "Maintenance Staff"):
+        super().__init__(page, username, role_name=role_name)
+        
+        #Add Menu
+        self.create_nav_btn(
+            "Dashboard",ft.Icons.DASHBOARD_ROUNDED,lambda _: self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
+        )
+
+        self.create_nav_btn(
+            "Work Orders",ft.Icons.HANDYMAN_ROUNDED,lambda _: self.switch_page("Work Orders", "View and manage work orders", show_work_orders)
+        )
+
+        self.create_nav_btn(
+            "Settings",ft.Icons.SETTINGS_ROUNDED,lambda _: self.switch_page("Settings", "Manage your account and preferences", show_settings)
+        )
+    
+# FUNCTIONS TO DISPLAY CONTENT
+    def show_dashboard(self, *args):
+        self.content_column.controls.clear()
+
+        # --- 1. WELCOME HEADER ---
+        header = ft.Container(
+            content=ft.Column([
+                ft.Text("Maintenance Overview", size=24, weight="bold", color=TEXT_DARK),
+                ft.Text("Quick glance at your tasks and building status", size=14, color=TEXT_MUTED)
+            ], spacing=5)
+        )
+
+        # --- 2. QUICK STATS ---
+        stats_row = ft.Row([
+            self.create_stat_card("New Requests", "08", ft.Icons.FIBER_NEW_ROUNDED),
+            self.create_stat_card("On-Going", "03", ft.Icons.HANDYMAN_ROUNDED),
+            self.create_stat_card("Resolved", "12", ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED),
+        ], spacing=20)
+
+        # --- 3. URGENT TASKS SECTION ---
+        urgent_label = ft.Row([
+            ft.Icon(ft.Icons.WARNING_AMBER_ROUNDED, color=ft.Colors.RED_700, size=20),
+            ft.Text("Urgent Attention Required", weight="bold", size=16, color=TEXT_DARK),
+        ], spacing=10)
+
+        urgent_requests = [
+            ("A-1204", "Water Pipe Burst", "10 mins ago", "Emergency"),
+            ("B-302", "Power Outage", "25 mins ago", "High Priority"),
+        ]
+
+        urgent_list = ft.Column(spacing=10)
+        for room, issue, time, label in urgent_requests:
+            urgent_list.controls.append(self._create_urgent_card(room, issue, time, label))
+
+        # --- 4. MAIN LAYOUT  ---
+        main_content = ft.Row([
+            # Left Column (Chiếm 2 phần): Công việc khẩn & Danh sách công việc
+            ft.Column([
+                urgent_label,
+                urgent_list,
+                ft.TextButton(
+                    "View all work orders",
+                    icon=ft.Icons.ARROW_FORWARD,
+                    on_click=lambda _: show_work_orders(self)
+                )
+            ], expand=2, spacing=15),
+            
+            # Right Column (Chiếm 1 phần): Trạng thái hệ thống
+            ft.Column([
+                ft.Text("System Status", weight="bold", size=16, color=TEXT_DARK),
+                self._create_infrastructure_status()
+            ], expand=1, spacing=15)
+        ], alignment="start", vertical_alignment="start", spacing=30)
+
+        self.content_column.controls.extend([
+            header,
+            ft.Divider(height=10, color="transparent"),
+            stats_row,
+            ft.Divider(height=20, color="transparent"),
+            main_content
+        ])
+        self.page.update()
+
+    def _create_urgent_card(self, room, issue, time, label):
+        return ft.Container(
+            bgcolor=CARD_BG,
+            padding=15,
+            border_radius=10,
+            border=ft.Border.all(1, ft.Colors.RED_100),
+            content=ft.Row([
+                ft.Icon(ft.Icons.REPORT_PROBLEM_ROUNDED, color=ft.Colors.RED_700),
+                ft.Column([
+                    ft.Text(f"Room {room}", weight="bold", color=TEXT_DARK),
+                    ft.Text(issue, color=TEXT_MUTED, size=13),
+                ], expand=True, spacing=2),
+                ft.Text(label, size=11, weight="bold", color=ft.Colors.RED_700),
+            ])
+        )
+
+    def _create_infrastructure_status(self):
+        return ft.Container(
+            bgcolor=CARD_BG,
+            padding=20,
+            border_radius=12,
+            content=ft.Column([
+                self._status_row("Elevator Block A", "Active", ft.Colors.GREEN_700),
+                self._status_row("Water Pump", "Warning", ft.Colors.ORANGE_700),
+                self._status_row("Backup Gen", "Offline", ft.Colors.RED_700),
+            ], spacing=10)
+        )
+
+    def _status_row(self, name, status, color):
+        return ft.Row([
+            ft.Text(name, color=TEXT_DARK, size=13, expand=True),
+            ft.Container(
+                content=ft.Text(status, size=10, color="white", weight="bold"),
+                bgcolor=color, padding=ft.Padding.symmetric(horizontal=8, vertical=2), border_radius=5
+            )
+        ])
+        
+def main(page: ft.Page):
+    dashboard = MaintenanceDashboard(page, "Sara", "Maintenance Staff")
+
+    page.add(dashboard)
+    dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_dashboard)
+            
+if __name__ == "__main__":
+    ft.run(main)

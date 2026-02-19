@@ -12,7 +12,7 @@ from base_dashboard import *
 from residents import *
 from work_orders import *
 from parcel_mgr import *
-from settings import *
+from settingsStaff import *
 
 import flet as ft
 
@@ -95,7 +95,7 @@ class FrontDeskDashboard(BaseDashboard):
         self.page.update()
         
 def main(page: ft.Page):
-    dashboard = FrontDeskDashboard(page, "Sara", "Tenant")
+    dashboard = FrontDeskDashboard(page, "Sara", "Front Desk")
 
     page.add(dashboard)
     dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_overview)

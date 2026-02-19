@@ -16,10 +16,12 @@ def show_payments(dash, *args):
     if not dash: return
     global transactions_data
     dash.content_column.controls.clear()
+    
     transactions_data.sort(key=lambda x: x[0], reverse=True)
     
     total_outstanding = sum(t[2] for t in transactions_data if t[3] == "Pending")
-    last_paid = next((f"${t[2]:,.2f} ({t[0]})" for t in transactions_data if t[3] == "Paid"), "$0.00")
+    last_paid_entry = next((t for t in transactions_data if t[3] == "Paid"), None)
+    last_paid = f"${last_paid_entry[2]:,.2f} ({last_paid_entry[0]})" if last_paid_entry else "$0.00"
     
     # 1. Balance Overview (Cards)
     balance_cards = ft.Row(
@@ -139,7 +141,7 @@ def open_payment_modal(dash):
         global transactions_data
         current_date = datetime.now().strftime("%Y-%m-%d")
         
-        transactions_data.append([
+        transactions_data.insert(0, [
             current_date,
             f"Payment via {ref_method.value}",
             val,

@@ -19,7 +19,8 @@ parcels_data = [
 def show_parcel(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
-
+    
+    parcels_data.sort(key=lambda x: x[4], reverse=True)
     # --- 1. HEADER / ACTION BAR ---
     header = ft.Container(
         padding=ft.padding.symmetric(vertical=10),
@@ -70,7 +71,8 @@ def show_parcel(dash, *args):
                 label="Search by Room or Carrier",
                 prefix_icon=ft.Icons.SEARCH,
                 border_radius=10,
-                bgcolor="white"
+                bgcolor="white",
+                color=TEXT_DARK,
             ),
             ft.Divider(height=10, color="transparent"),
             ft.Text("Recent Parcels List", weight="bold", color=TEXT_DARK),
@@ -86,24 +88,25 @@ def show_parcel(dash, *args):
     dash.page.update()
 
 def draw_add_parcel_form(dash, *args):
-    """Hàm vẽ form nhập bưu phẩm mới"""
     dash.content_column.controls.clear()
     
-    ref_room = ft.TextField(label="Room Number", expand=True, hint_text="e.g. 302", border_radius=8)
-    ref_recipient = ft.TextField(label="Recipient Name (Optional)", expand=True, border_radius=8)
+    ref_room = ft.TextField(label="Room Number", expand=True, hint_text="e.g. 302", border_radius=8, color=TEXT_DARK)
+    ref_recipient = ft.TextField(label="Recipient Name (Optional)", expand=True, border_radius=8, color=TEXT_DARK)
     ref_carrier = ft.Dropdown(
         label="Carrier",
         expand=True,
         border_radius=8,
-        options=[ft.dropdown.Option(x) for x in ["SPX Express", "Lazada Logistics", "Grab/AhaMove", "Other"]]
+        color=TEXT_DARK,
+        options=[ft.dropdown.Option(x) for x in ["Royal Mail", "DHL", "Evri", "Parcelforce", "Other"]]
     )
     ref_storage = ft.Dropdown(
         label="Storage Type",
         expand=True,
         border_radius=8,
+        color=TEXT_DARK,
         options=[ft.dropdown.Option(x) for x in ["Standard", "Cold/Food", "Fragile/Large"]]
     )
-    ref_note = ft.TextField(label="Note / Description", multiline=True, min_lines=2, border_radius=8)
+    ref_note = ft.TextField(label="Note / Description", multiline=True, min_lines=2, border_radius=8, color=TEXT_DARK)
     
     back_btn = ft.Button(
         content=ft.Row([
@@ -119,9 +122,17 @@ def draw_add_parcel_form(dash, *args):
             dash.show_message("Error: Room and Carrier are required!")
             return
         
-        # LOGIC SQL TẠI ĐÂY
-        print(f"DB Action: Logging parcel for {ref_room.value} via {ref_carrier.value}")
-        # notify_resident(room=room_number, message="You have a new parcel at Front Desk") Send notification cho resident khi có bưu phẩm mới
+        global parcels_data
+        current_time = datetime.now().strftime("%I:%M %p")
+        
+        parcels_data.insert(0, [
+            ref_room.value,
+            ref_carrier.value,
+            current_time,
+            ref_storage.value if ref_storage.value else "Standard",
+            "Pending"
+        ])
+
         dash.show_message(f"Parcel for Room {ref_room.value} logged successfully!")
         show_parcel(dash)
 
@@ -181,27 +192,21 @@ def _create_parcel_item(dash, room, carrier, time, p_type, status="Pending"):
         ])
     )
 def handle_mark_delivered(dash, room, carrier):
-    try:
-        global parcels_data
-        for p in parcels_data:
-            if p[0] == room and p[1] == carrier:
-                p[4] = "Delivered"
-                break
+    global parcels_data
+    for p in parcels_data:
+        if p[0] == room and p[1] == carrier and p[4] == "Pending":
+            p[4] = "Delivered"
+            break
             
         # 1. LOGIC DATABASE:
         # db.update_parcel_status(room=room, carrier=carrier, status="Delivered")
         print(f"Updating Database: Parcel for {room} delivered.")
 
-        # 2. THÔNG BÁO:
         send_notification(
             dash,
             user_id=room,
             title="Parcel Picked Up",
             message=f"The package from {carrier} has been marked as picked up at the Front Desk."
         )
-        dash.show_message(f"Status updated for Room {room}")
-        show_parcel(dash)
-        
-    except Exception as e:
-        dash.show_message(f"Error updating status: {str(e)}")
-    
+    dash.show_message(f"Room {room} picked up their parcel.")
+    show_parcel(dash)
