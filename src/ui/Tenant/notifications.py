@@ -1,14 +1,19 @@
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_path = os.path.abspath(os.path.join(current_dir, "../../"))
+if src_path not in sys.path:
+    sys.path.append(src_path)
+    
 from base_dashboard import *
+from logic.search import *
 import flet as ft
-# CHƯA FIX LỖI LOGIC SORTING, CHỈ LÀM MỚI GIAO DIỆN VÀ THÊM DỮ LIỆU GIẢ
 
 def show_notifications(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
+    
     dash.type_filter = ft.Dropdown(
         label="Type",
         value="All Types",
@@ -24,8 +29,6 @@ def show_notifications(dash, *args):
         text_style=ft.TextStyle(color=TEXT_DARK),
         options=[ft.dropdown.Option(x) for x in ["All Time", "Last 1 Week", "Last 2 Weeks", "Last 1 Month", "Last 3 Months"]],
     )
-    dash.type_filter.on_change = lambda e: apply_notification_filters(dash)
-    dash.time_filter.on_change = lambda e: apply_notification_filters(dash)
 
     filter_bar = ft.Container(
         bgcolor=CARD_BG,
@@ -36,9 +39,15 @@ def show_notifications(dash, *args):
             ft.Text("Filters:", weight="bold", color=TEXT_DARK),
             dash.type_filter,
             dash.time_filter,
+            ft.Button(
+                "Apply",
+                icon=ft.Icons.SEARCH_ROUNDED,
+                on_click=lambda e: apply_notification_filters(dash),
+                style=ft.ButtonStyle(bgcolor=ACCENT_BLUE, color="white")
+            ),
             ft.Container(expand=True),
             ft.TextButton(
-                "Clear All Filters",
+                "Clear All",
                 icon=ft.Icons.REFRESH_ROUNDED,
                 on_click=lambda e: reset_filters(dash)
             )
@@ -57,36 +66,35 @@ def show_notifications(dash, *args):
             dash.notif_list_area
         ], scroll=ft.ScrollMode.AUTO)
     )
-    dash.content_column.controls = [
-        filter_bar,
-        notif_container
-    ]
+
+    dash.content_column.controls = [filter_bar, notif_container]
     apply_notification_filters(dash)
 
 def apply_notification_filters(dash, e=None):
     if not hasattr(dash, "notif_list_area") or dash.notif_list_area is None:
         return
-    selected_type = dash.type_filter.value
-    selected_time = dash.time_filter.value
 
+    # --- KẾT NỐI DỮ LIỆU (DẠNG DICTIONARY) ---
+    # Sau này dòng này sẽ là: raw_data = db.fetch_all_as_dict("SELECT * FROM notifications")
+    
     raw_data = [
-        ("Security", "Parking Update", "New guest parking rules.", "4 days ago", 4, False),
-        ("Billing", "Rent Invoice Generated", "Your rent invoice for February is ready.", "Today", 0, True),
-        ("General", "Spring BBQ Party", "Join us for a BBQ party.", "20 days ago", 20, False),
-        ("Maintenance", "Elevator Repair", "Elevator maintenance in Block B.", "Yesterday", 1, True),
-        ("Maintenance", "Water Leak Fixed", "The leak in 3rd floor is fixed.", "45 days ago", 45, False),
-        ("Billing", "Payment Received", "Received payment for January.", "10 days ago", 10, False),
+        {"type": "Security", "title": "Parking Update", "msg": "New guest parking rules.", "date": "4 days ago", "days": 4, "unread": False},
+        {"type": "Billing", "title": "Rent Invoice Generated", "msg": "Your rent invoice for February is ready.", "date": "Today", "days": 0, "unread": True},
+        {"type": "General", "title": "Spring BBQ Party", "msg": "Join us for a BBQ party.", "date": "20 days ago", "days": 20, "unread": False},
+        {"type": "Maintenance", "title": "Elevator Repair", "msg": "Elevator maintenance in Block B.", "date": "Yesterday", "days": 1, "unread": True},
+        {"type": "Maintenance", "title": "Water Leak Fixed", "msg": "The leak in 3rd floor is fixed.", "date": "45 days ago", "days": 45, "unread": False},
+        {"type": "Billing", "title": "Payment Received", "msg": "Received payment for January.", "date": "10 days ago", "days": 10, "unread": False},
     ]
 
-    # LOGIC SORTING
-    filtered = [n for n in raw_data if (selected_type == "All Types" or n[0] == selected_type)]
-    
-    time_map = {"Last 1 Week": 7, "Last 2 Weeks": 14, "Last 1 Month": 30, "Last 3 Months": 90}
-    if selected_time != "All Time":
-        max_days = time_map.get(selected_time, 999)
-        filtered = [n for n in filtered if n[4] <= max_days]
+    filtered = SearchEngine.apply_logic(raw_data, filters={"type": dash.type_filter.value})
 
-    final_list = sorted(filtered, key=lambda x: (not x[5], x[4]))
+    time_map = {"Last 1 Week": 7, "Last 2 Weeks": 14, "Last 1 Month": 30, "Last 3 Months": 90}
+    if dash.time_filter.value != "All Time":
+        max_days = time_map.get(dash.time_filter.value, 999)
+        filtered = [n for n in filtered if n["days"] <= max_days]
+
+    final_list = sorted(filtered, key=lambda x: (not x["unread"], x["days"]))
+
     dash.notif_list_area.controls.clear()
 
     if not final_list:
@@ -97,13 +105,14 @@ def apply_notification_filters(dash, e=None):
         shown_recent = shown_last_week = shown_older = False
         badge_colors = {"Billing": ft.Colors.ORANGE_700, "Maintenance": ft.Colors.RED_700, "Security": ft.Colors.BLUE_GREY_900, "General": ft.Colors.BLUE_700}
 
-        for n_type, title, msg, date_str, days, is_unread in final_list:
+        for item in final_list:
+            # Header logic
             header_text = ""
-            if days <= 7 and not shown_recent:
+            if item["days"] <= 7 and not shown_recent:
                 header_text = "RECENT (THIS WEEK)"; shown_recent = True
-            elif 7 < days <= 14 and not shown_last_week:
+            elif 7 < item["days"] <= 14 and not shown_last_week:
                 header_text = "LAST WEEK"; shown_last_week = True
-            elif days > 14 and not shown_older:
+            elif item["days"] > 14 and not shown_older:
                 header_text = "OLDER NOTIFICATIONS"; shown_older = True
 
             if header_text:
@@ -111,35 +120,32 @@ def apply_notification_filters(dash, e=None):
                     ft.Row([ft.Divider(expand=True), ft.Text(header_text, size=11, weight="bold", color=ft.Colors.GREY_400)], spacing=10)
                 )
 
-            # Render Item
+            # Notification Item
             dash.notif_list_area.controls.append(
                 ft.Container(
                     padding=ft.Padding(15, 12, 15, 12),
                     border_radius=10,
-                    bgcolor=ft.Colors.BLUE_50 if is_unread else ft.Colors.TRANSPARENT,
+                    bgcolor=ft.Colors.BLUE_50 if item["unread"] else ft.Colors.TRANSPARENT,
                     content=ft.Row([
                         ft.Container(
-                            content=ft.Text(n_type.upper(), size=9, weight="bold", color="white"),
-                            bgcolor=badge_colors.get(n_type, ft.Colors.GREY_500),
+                            content=ft.Text(item["type"].upper(), size=9, weight="bold", color="white"),
+                            bgcolor=badge_colors.get(item["type"], ft.Colors.GREY_500),
                             padding=ft.Padding(10, 4, 10, 4), border_radius=5, width=90, alignment=ft.Alignment(0, 0)
                         ),
                         ft.Column([
-                            ft.Text(title, weight="bold", size=15, color=TEXT_DARK),
-                            ft.Text(msg, size=13, weight="bold", color=ft.Colors.GREY_600, width=500),
+                            ft.Text(item["title"], weight="bold", size=15, color=TEXT_DARK),
+                            ft.Text(item["msg"], size=13, weight="bold", color=ft.Colors.GREY_600, width=500),
                         ], expand=True, spacing=2),
                         ft.Column([
-                            ft.Text(date_str, size=12, weight="bold", color=ft.Colors.GREY_400),
-                            ft.Icon(ft.Icons.CIRCLE, color=ft.Colors.BLUE_600, size=12) if is_unread else ft.Container()
+                            ft.Text(item["date"], size=12, weight="bold", color=ft.Colors.GREY_400),
+                            ft.Icon(ft.Icons.CIRCLE, color=ft.Colors.BLUE_600, size=12) if item["unread"] else ft.Container()
                         ], horizontal_alignment=ft.CrossAxisAlignment.END)
                     ])
                 )
             )
-    if dash.page:
-        dash.page.update()
+    dash.page.update()
 
 def reset_filters(dash, e=None):
     dash.type_filter.value = "All Types"
     dash.time_filter.value = "All Time"
     apply_notification_filters(dash)
-    if dash.page:
-        dash.page.update()

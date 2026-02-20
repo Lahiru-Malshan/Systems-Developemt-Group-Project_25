@@ -8,25 +8,25 @@ if src_path not in sys.path:
 # Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
 
 import flet as ft
+from datetime import datetime
 from logic.notifications import *
 from base_dashboard import *
-from logic.notifications import *
+from logic.search import *
 
 # Mock data để test (Sau này sẽ thay bằng SQL SELECT)
 # Cấu trúc: [ID, Room, Category, Description, Priority, Status, Date]
 test_work_orders = [
-    ["WO-001", "302", "Plumbing", "Kitchen sink leaking", "High", "In Progress", "2026-02-15"],
-    ["WO-002", "105", "Electrical", "AC not cooling", "Medium", "Pending", "2026-02-16"],
-    ["WO-003", "B-704", "Carpentry", "Broken wardrobe door", "Low", "Completed", "2026-02-14"],
+    {"id": "WO-001", "room": "302", "category": "Plumbing", "desc": "Kitchen sink leaking", "priority": "High", "status": "In Progress", "date": "2026-02-15", "days": 5},
+    {"id": "WO-002", "room": "105", "category": "Electrical", "desc": "AC not cooling", "priority": "Medium", "status": "Pending", "date": "2026-02-16", "days": 4},
+    {"id": "WO-003", "room": "B-704", "category": "Carpentry", "desc": "Broken wardrobe door", "priority": "Low", "status": "Completed", "date": "2026-02-14", "days": 6},
 ]
 
 def show_work_orders(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
+    if not hasattr(dash, "order_list_column"):
+        dash.order_list_column = ft.Column(spacing=10, scroll=ft.ScrollMode.ALWAYS)
     
-    status_order = {"Pending": 0, "In Progress": 1, "Assigned": 2, "Completed": 3}
-    test_work_orders.sort(key=lambda x: (status_order.get(x[5], 99), x[6]), reverse=False)
-
     # --- 1. HEADER ---
     header = ft.Container(
         padding=ft.padding.symmetric(vertical=10),
@@ -44,36 +44,67 @@ def show_work_orders(dash, *args):
     )
 
     # --- 2. STATS ---
-    pending_cnt = len([o for o in test_work_orders if o[5] == "Pending"])
-    progress_cnt = len([o for o in test_work_orders if o[5] in ["In Progress", "Assigned"]])
-    completed_cnt = len([o for o in test_work_orders if o[5] == "Completed"])
+    pending_cnt = len([o for o in test_work_orders if o["status"] == "Pending"])
+    progress_cnt = len([o for o in test_work_orders if o["status"] in ["In Progress", "Assigned"]])
+    completed_cnt = len([o for o in test_work_orders if o["status"] == "Completed"])
     
     order_stats = ft.Row([
         dash.create_stat_card("Pending", str(pending_cnt), ft.Icons.PENDING_ACTIONS_ROUNDED),
         dash.create_stat_card("In Progress", str(progress_cnt), ft.Icons.HANDYMAN_ROUNDED),
         dash.create_stat_card("Completed", str(completed_cnt), ft.Icons.TASK_ALT_ROUNDED),
     ], spacing=20)
+    
+    # --- 3. FILTER BAR ---
+    dash.wo_search = ft.TextField(
+        label="Search by Room or Category",
+        prefix_icon=ft.Icons.SEARCH,
+        border_radius=10,
+        color=TEXT_DARK,
+        expand=True
+    )
+    apply_btn = ft.Button(
+        "Apply",
+        icon=ft.Icons.SEARCH_ROUNDED,
+        bgcolor=ACCENT_BLUE,
+        color="white",
+        on_click=lambda _: apply_work_order_filters(dash)
+    )
 
-    # --- 3. LIST VIEW ---
-    order_items = []
-    for order in test_work_orders:
-        order_items.append(_create_work_order_item(dash, *order))
-
-    orders_list = ft.Container(
+    # --- 4. LIST VIEW ---
+    orders_list_container = ft.Container(
         bgcolor=CARD_BG,
         padding=20,
         border_radius=12,
         expand=True,
         content=ft.Column([
-            ft.TextField(label="Search by Room or Category", prefix_icon=ft.Icons.SEARCH, border_radius=10, color=TEXT_DARK, on_change=lambda e: print("Searching...")),
+            ft.Row([dash.wo_search, apply_btn], spacing=10),
             ft.Divider(height=10, color="transparent"),
-            ft.ListView(controls=order_items, expand=True, spacing=10)
+            ft.Container(content=dash.order_list_column, expand=True)
         ])
     )
 
-    dash.content_column.controls.extend([header, order_stats, orders_list])
+    dash.content_column.controls.extend([header, order_stats, orders_list_container])
+    apply_work_order_filters(dash)
     dash.page.update()
 
+def apply_work_order_filters(dash):
+    if not hasattr(dash, "order_list_column"): return
+
+    filtered = SearchEngine.apply_logic(
+        data_list=test_work_orders,
+        search_term=dash.wo_search.value
+    )
+
+    status_order = {"Pending": 0, "In Progress": 1, "Assigned": 2, "Completed": 3}
+    final_list = sorted(filtered, key=lambda x: (status_order.get(x["status"], 99), x["date"]))
+
+    dash.order_list_column.controls.clear()
+    for order in final_list:
+        dash.order_list_column.controls.append(
+            _create_work_order_item(dash, order)
+        )
+    dash.page.update()
+    
 def open_create_order_modal(dash):
     # --- 1. REFS TO COLLECT DATA ---
     ref_room = ft.TextField(label="Room Number", hint_text="e.g. 302 or Common Area", border_color=ACCENT_BLUE)
@@ -93,42 +124,42 @@ def open_create_order_modal(dash):
         # Add to our global test list (Mock DB)
         global test_work_orders
         current_date = datetime.now().strftime("%Y-%m-%d")
-
-        try:
-            ids = [int(o[0].split('-')[1]) for o in test_work_orders if '-' in o[0]]
-            next_id = max(ids) + 1 if ids else 1
-        except:
-            next_id = len(test_work_orders) + 1
-
-        new_id = f"WO-{next_id:03d}"
+        new_id = f"WO-{len(test_work_orders) + 1:03d}"
         
-        test_work_orders.insert(0, [
-            new_id, ref_room.value, ref_category.value if ref_category.value else "General", ref_desc.value, "Medium", "Pending", current_date
-        ])
+        test_work_orders.insert(0, {
+            "id": new_id,
+            "room": ref_room.value,
+            "category": ref_category.value if ref_category.value else "General",
+            "desc": ref_desc.value,
+            "priority": "Medium",
+            "status": "Pending",
+            "date": current_date,
+            "days": 0
+        })
 
         dash.close_dialog()
         show_work_orders(dash)
         dash.show_message(f"Work Order {new_id} created successfully!")
 
     # --- 3. MODAL UI ---
-    content = ft.Column([
-        ref_room,
-        ref_category,
-        ref_desc,
-    ], spacing=15, tight=True, width=400)
-
-    actions = [
-        ft.Button("Cancel", on_click=dash.close_dialog),
-        ft.Button(
-            content=ft.Text("CREATE ORDER", color="white", weight="bold"),
-            bgcolor=ACCENT_BLUE,
-            on_click=handle_submit_order
-        ),
-    ]
-
-    dash.show_custom_modal("Create New Work Order", content, actions)
+    dash.show_custom_modal(
+        "Create New Work Order",
+        ft.Column([ref_room, ref_category, ref_desc], spacing=15, tight=True, width=400),
+        [
+            ft.Button("Cancel", on_click=dash.close_dialog),
+            ft.Button("CREATE", bgcolor=ACCENT_BLUE, color="white", on_click=handle_submit_order)
+        ]
+    )
     
-def _create_work_order_item(dash, wo_id, room, cat, desc, priority, status, date):
+def _create_work_order_item(dash, order):
+    wo_id = order["id"]
+    room = order["room"]
+    cat = order["category"]
+    desc = order["desc"]
+    priority = order["priority"]
+    status = order["status"]
+    date = order["date"]
+    
     status_colors = {
         "Pending": ft.Colors.ORANGE_700,
         "Assigned": ft.Colors.BLUE_700,
@@ -136,7 +167,6 @@ def _create_work_order_item(dash, wo_id, room, cat, desc, priority, status, date
     }
     s_color = status_colors.get(status, ft.Colors.GREY_400)
 
-    # FD just "Assign" not "Complete"
     if status == "Pending":
         action_button = ft.Button(
             content=ft.Text("Assign Tech", size=11, color="white", weight="bold"),
@@ -162,6 +192,7 @@ def _create_work_order_item(dash, wo_id, room, cat, desc, priority, status, date
                     ft.Text(cat, weight="bold", size=14, color=TEXT_DARK),
                     ft.Text(f"• {wo_id}", size=11, color=TEXT_MUTED),
                 ], spacing=10),
+                ft.Text(f"Room: {room}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
                 ft.Text(desc, size=13, color=TEXT_MUTED, max_lines=1, overflow="ellipsis"),
             ], expand=True),
             ft.Column([
@@ -176,8 +207,8 @@ def handle_assign_order(dash, wo_id, room):
     
     try:
         for order in test_work_orders:
-            if order[0] == wo_id:
-                order[5] = "Assigned"
+            if order["id"] == wo_id:
+                order["status"] = "Assigned"
                 break
 
         send_notification(

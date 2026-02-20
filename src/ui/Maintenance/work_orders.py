@@ -1,4 +1,3 @@
-from datetime import datetime
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -10,6 +9,8 @@ if src_path not in sys.path:
 
 import flet as ft
 from base_dashboard import *
+from logic.search import *
+from datetime import datetime
 
 # Mock data để test (Sau này sẽ thay bằng SQL SELECT)
 test_work_orders = [
@@ -20,23 +21,30 @@ test_work_orders = [
 ]
 
 def get_all_work_orders():
-    """Bây giờ hàm này chỉ trả về biến Global đã khai báo ở trên"""
     global test_work_orders
     return test_work_orders
-
-def update_work_order_status(wo_id, new_status):
-    """Hàm cập nhật - Sau này gửi lệnh UPDATE vào Database ở đây"""
-    print(f"Executing: UPDATE work_orders SET status='{new_status}' WHERE id='{wo_id}'")
-    return True
 
 def show_work_orders(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
-    work_orders = sorted(get_all_work_orders(), key=lambda x: x['reportedDate'], reverse=True)
+    
+    dash.wo_status_tab = ft.SegmentedButton(
+        selected=["all"],
+        segments=[
+            ft.Segment(value="all", label=ft.Text("All Tasks", color=ACCENT_BLUE_LIGHT)),
+            ft.Segment(value="Pending", label=ft.Text("Pending", color= ACCENT_BLUE_LIGHT)),
+            ft.Segment(value="In Progress", label=ft.Text("In Progress", color=ACCENT_BLUE_LIGHT)),
+            ft.Segment(value="Resolved", label=ft.Text("Resolved", color=ACCENT_BLUE_LIGHT)),
+        ],
+    )
+    dash.wo_status_tab.on_change = lambda _: apply_wo_filters(dash)
     
     # --- 1. HEADER ---
     header = ft.Row([
-        ft.Text("Work Order Directory", size=24, weight="bold", color=TEXT_DARK),
+        ft.Column([
+            ft.Text("Work Order Directory", size=24, weight="bold", color=TEXT_DARK),
+            ft.Text("Manage maintenance requests and staff assignments", color=TEXT_MUTED, size=13),
+        ]),
         ft.Container(expand=True),
         ft.ElevatedButton(
             content=ft.Row([
@@ -46,19 +54,40 @@ def show_work_orders(dash, *args):
             bgcolor=ACCENT_BLUE,
             on_click=lambda _: open_new_request_form(dash)
         ),
-        ft.VerticalDivider(width=10),
-        ft.SegmentedButton(
-            selected=["all"],
-            segments=[
-                ft.Segment(value="all", label=ft.Text("All Tasks")),
-                ft.Segment(value="pending", label=ft.Text("Pending")),
-            ],
-        )
     ], alignment="spaceBetween")
+    dash.wo_table_area = ft.Column(scroll=ft.ScrollMode.AUTO)
+    
+    table_container = ft.Container(
+        bgcolor=CARD_BG,
+        padding=20,
+        border_radius=12,
+        expand=True,
+        content=dash.wo_table_area
+    )
+    dash.content_column.controls.extend([
+        header,
+        ft.Divider(height=10, color="transparent"),
+        dash.wo_status_tab,
+        ft.Divider(height=10, color="transparent"),
+        table_container
+    ])
+    
+    apply_wo_filters(dash)
+    
+def apply_wo_filters(dash):
+    if not hasattr(dash, "wo_table_area"): return
+    work_orders = test_work_orders
+    status_val = list(dash.wo_status_tab.selected)[0]
+    
+    if status_val == "all":
+        filtered_list = work_orders
+    else:
+        filtered_list = [wo for wo in work_orders if wo["status"] == status_val]
 
-    # --- 2. TABLE DATA ---
+    final_list = sorted(filtered_list, key=lambda x: x['reportedDate'], reverse=True)
+    
     rows = []
-    for wo in work_orders:
+    for wo in final_list:
         p_color = ft.Colors.RED_700 if wo["priority"] in ["Emergency", "High"] else TEXT_DARK
 
         if wo["status"] == "Pending":
@@ -83,32 +112,25 @@ def show_work_orders(dash, *args):
             ])
         )
 
-    table_container = ft.Container(
-        bgcolor=CARD_BG,
-        padding=20,
-        border_radius=12,
-        expand=True,
-        content=ft.Column([
-            ft.DataTable(
-                expand=True,
-                column_spacing=45,
-                heading_row_color=ft.Colors.BLUE_GREY_50,
-                heading_row_height=50,
-                columns=[
-                    ft.DataColumn(ft.Text("ID",weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Room", weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Issue", weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Priority", weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Status", weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Completed", weight="bold", color=ACCENT_BLUE)),
-                    ft.DataColumn(ft.Text("Action", weight="bold", color=ACCENT_BLUE)),
-                ],
-                rows=rows,
-            )
-        ], scroll=ft.ScrollMode.AUTO)
-    )
+    dash.wo_table_area.controls = [
+        ft.DataTable(
+            expand=True,
+            column_spacing=45,
+            heading_row_color=ft.Colors.BLUE_GREY_50,
+            heading_row_height=50,
+            columns=[
+                ft.DataColumn(ft.Text("ID", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Room", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Issue", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Priority", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Status", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Completed", weight="bold", color=ACCENT_BLUE)),
+                ft.DataColumn(ft.Text("Action", weight="bold", color=ACCENT_BLUE)),
+            ],
+            rows=rows
+        )
+    ]
 
-    dash.content_column.controls.extend([header, ft.Divider(height=10, color="transparent"), table_container])
     dash.page.update()
 
 def handle_status_change(dash, wo_id):
@@ -117,16 +139,13 @@ def handle_status_change(dash, wo_id):
         if wo["id"] == wo_id:
             new_status = "In Progress" if wo["status"] == "Pending" else "Pending"
             wo["status"] = new_status
-            
-            update_work_order_status(wo_id, new_status)
             dash.show_message(f"Task {wo_id} is now {new_status}")
             break
-    show_work_orders(dash)
+    apply_wo_filters(dash)
 
 def open_new_request_form(dash):
     """Form để Tenant hoặc Staff báo cáo lỗi mới"""
     current_date = datetime.now().strftime("%Y-%m-%d")
-    
     room_input = ft.TextField(label="Room / Common Area", hint_text="e.g. A-1204 or Lobby", border_color=ACCENT_BLUE)
     category_input = ft.Dropdown(
         label="Category", value="General", border_color=ACCENT_BLUE,
