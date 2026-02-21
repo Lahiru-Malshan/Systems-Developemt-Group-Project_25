@@ -21,15 +21,15 @@ def show_payments(dash, *args):
     
     total_outstanding = sum(t[2] for t in transactions_data if t[3] == "Pending")
     last_paid_entry = next((t for t in transactions_data if t[3] == "Paid"), None)
-    last_paid = f"${last_paid_entry[2]:,.2f} ({last_paid_entry[0]})" if last_paid_entry else "$0.00"
+    last_paid = f"£{last_paid_entry[2]:,.2f} ({last_paid_entry[0]})" if last_paid_entry else "£0.00"
     
     # 1. Balance Overview (Cards)
     balance_cards = ft.Row(
         spacing=20,
         controls=[
-            dash.create_stat_card("Total Outstanding", f"${total_outstanding:,.2f}", ft.Icons.MONEY_OFF_ROUNDED, highlight=True),
+            dash.create_stat_card("Total Outstanding", f"£{total_outstanding:,.2f}", ft.Icons.MONEY_OFF_ROUNDED, highlight=True),
             dash.create_stat_card("Last Paid", last_paid, ft.Icons.CHECK_CIRCLE_ROUNDED),
-            dash.create_stat_card("Next Due", "$1,200.00 (Nov 05)", ft.Icons.CALENDAR_MONTH_ROUNDED),
+            dash.create_stat_card("Next Due", "£1,200.00 (Nov 05)", ft.Icons.CALENDAR_MONTH_ROUNDED),
         ]
     )
     
@@ -42,7 +42,7 @@ def show_payments(dash, *args):
                 cells=[
                     ft.DataCell(ft.Text(date, color=TEXT_DARK, weight=ft.FontWeight.W_500)),
                     ft.DataCell(ft.Text(desc, color=TEXT_DARK, weight=ft.FontWeight.W_500)),
-                    ft.DataCell(ft.Text(f"${amt:,.2f}", weight=ft.FontWeight.BOLD, color=TEXT_DARK)),
+                    ft.DataCell(ft.Text(f"£{amt:,.2f}", weight=ft.FontWeight.BOLD, color=TEXT_DARK)),
                     ft.DataCell(
                         ft.Container(
                             content=ft.Text(status, color="white", size=10, weight="bold"),
@@ -82,7 +82,7 @@ def show_payments(dash, *args):
         width=300,
         content=ft.Column([
             ft.Text("Current Invoice", size=16, weight="bold",color=TEXT_DARK),
-            ft.Text("$1,250.00", size=28, weight="bold", color=TEXT_DARK),
+            ft.Text("£1,250.00", size=28, weight="bold", color=TEXT_DARK),
             ft.Divider(),
             ft.Button(
                 "Make a Payment",
@@ -108,7 +108,7 @@ def show_payments(dash, *args):
 def open_payment_modal(dash):
     ref_amount = ft.TextField(
         label="Enter Amount",
-        prefix=ft.Text("$ "),
+        prefix=ft.Text("£ "),
         value="",
         keyboard_type=ft.KeyboardType.NUMBER,
         border_color=ACCENT_BLUE,
@@ -148,7 +148,7 @@ def open_payment_modal(dash):
             "Paid"
         ])
         
-        dash.show_message(f"Success! Paid ${val:,.2f} successfully!")
+        dash.show_message(f"Success! Paid £{val:,.2f} successfully!")
         dash.close_dialog()
         show_payments(dash)
 

@@ -44,7 +44,7 @@ class TenantDashboard(BaseDashboard):
         stat_cards = ft.Row(
             spacing=20,
             controls=[
-                self.create_stat_card("Next Rent Due", "$1,200", ft.Icons.CALENDAR_MONTH_ROUNDED),
+                self.create_stat_card("Next Rent Due", "£1,200", ft.Icons.CALENDAR_MONTH_ROUNDED),
                 self.create_stat_card("Payment Status", "On Time", ft.Icons.CHECK_CIRCLE_ROUNDED),
                 self.create_stat_card("Unread Notifs", "3 New", ft.Icons.ERROR_OUTLINE_ROUNDED, highlight=True),
             ]

@@ -62,7 +62,6 @@ class MaintenanceDashboard(BaseDashboard):
 
         # --- 4. MAIN LAYOUT  ---
         main_content = ft.Row([
-            # Left Column (Chiếm 2 phần): Công việc khẩn & Danh sách công việc
             ft.Column([
                 urgent_label,
                 urgent_list,
@@ -73,7 +72,6 @@ class MaintenanceDashboard(BaseDashboard):
                 )
             ], expand=2, spacing=15),
             
-            # Right Column (Chiếm 1 phần): Trạng thái hệ thống
             ft.Column([
                 ft.Text("System Status", weight="bold", size=16, color=TEXT_DARK),
                 self._create_infrastructure_status()

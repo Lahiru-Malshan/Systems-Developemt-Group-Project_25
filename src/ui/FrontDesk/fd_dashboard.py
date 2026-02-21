@@ -17,7 +17,7 @@ from settingsStaff import *
 import flet as ft
 
 class FrontDeskDashboard(BaseDashboard):
-    def __init__(self, page: ft.Page, username: str, role_name: str = "Front Desk"):
+    def __init__(self, page: ft.Page, username: str, role_name: str = "Front Desk Staff"):
         super().__init__(page, username, role_name=role_name)
         
         self.create_nav_btn(

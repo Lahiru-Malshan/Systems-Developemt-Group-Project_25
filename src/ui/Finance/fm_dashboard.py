@@ -17,7 +17,7 @@ from transactions import *
 from reports import *
 
 class FinanceDashboard(BaseDashboard):
-    def __init__(self, page: ft.Page, username: str, role_name: str = "Finance"):
+    def __init__(self, page: ft.Page, username: str, role_name: str = "Finance Manager"):
         super().__init__(page, username, role_name=role_name)
 
         self.create_nav_btn(
