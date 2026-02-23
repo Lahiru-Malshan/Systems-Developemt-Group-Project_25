@@ -74,8 +74,7 @@ def apply_notification_filters(dash, e=None):
     if not hasattr(dash, "notif_list_area") or dash.notif_list_area is None:
         return
 
-    # --- KẾT NỐI DỮ LIỆU (DẠNG DICTIONARY) ---
-    # Sau này dòng này sẽ là: raw_data = db.fetch_all_as_dict("SELECT * FROM notifications")
+    # --- CONNECT DATA (DICTIONARY) ---
     
     raw_data = [
         {"type": "Security", "title": "Parking Update", "msg": "New guest parking rules.", "date": "4 days ago", "days": 4, "unread": False},

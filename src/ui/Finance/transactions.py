@@ -8,6 +8,7 @@ if src_path not in sys.path:
 
 import flet as ft
 from base_dashboard import *
+from logic.search import *
 
 payments_data = [
     {"date": "2026-02-20", "unit": "A-101", "ref": "RENT-FEB-101", "amount": 1200.00, "method": "Bank Transfer", "status": "Reconciled"},
@@ -94,9 +95,15 @@ def show_transactions(dash, *args):
         padding=20,
         border_radius=12,
         expand=True,
+        border=ft.Border.all(1, ft.Colors.with_opacity(0.1, TEXT_DARK)),
+        shadow=ft.BoxShadow(blur_radius=10, color=ft.Colors.with_opacity(0.05, "black")),
         content=ft.Column([
-            ft.Text("Transaction List", weight="bold", size=16, color=TEXT_DARK),
-            dash.transaction_table_area
+            ft.Row([
+                ft.Text("Transaction List", weight="bold", size=16, color=TEXT_DARK),
+                ft.Text(f"Showing {len(payments_data)} records", size=12, color=TEXT_MUTED)
+            ], alignment="spaceBetween"),
+            ft.Divider(height=1),
+            ft.Row([dash.transaction_table_area], scroll=ft.ScrollMode.ALWAYS)
         ])
     )
 
@@ -107,9 +114,16 @@ def show_transactions(dash, *args):
 def apply_transaction_filters(dash):
     if not hasattr(dash, "transaction_table_area"):
         return
-    filtered = _get_filtered_list(dash)
+    search_val = (dash.trans_search.value or "")
+    status_val = dash.trans_status_filter.value or "All"
+    
+    filtered = SearchEngine.apply_logic(
+        data_list=payments_data,
+        search_term=search_val,
+        filters={"status": status_val}
+    )
     filtered = sorted(filtered, key=lambda x: x["date"], reverse=True)
-
+    
     rows = []
     for p in filtered:
         if p["status"] == "Reconciled":

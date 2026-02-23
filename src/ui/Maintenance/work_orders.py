@@ -12,7 +12,7 @@ from base_dashboard import *
 from logic.search import *
 from datetime import datetime
 
-# Mock data để test (Sau này sẽ thay bằng SQL SELECT)
+# Mock data
 test_work_orders = [
     {"id": "WO-101", "room": "A-1204", "issue": "Water Pipe Burst", "category": "Plumbing", "priority": "Emergency", "status": "Pending", "reportedDate": "2026-02-18", "scheduledDate": "2026-02-19", "completionDate": "-"},
     {"id": "WO-102", "room": "B-302", "issue": "Power Outage", "category": "Electrical", "priority": "High", "status": "Pending", "reportedDate": "2026-02-19", "scheduledDate": "2026-02-19", "completionDate": "-"},

@@ -8,6 +8,7 @@ if src_path not in sys.path:
 
 import flet as ft
 from datetime import datetime
+from logic.search import *
 from base_dashboard import *
 from flet_charts import BarChart, BarChartGroup, BarChartRod, ChartAxis, ChartAxisLabel, ChartGridLines
 
@@ -130,7 +131,6 @@ def handle_generate_logic(dash):
     for item in data:
         all_values.extend([item.get("revenue", 0), item.get("expenses", 0)])
     
-    # Lấy giá trị lớn nhất (đơn vị k), cộng thêm 10% khoảng trống phía trên
     max_val_k = (max(all_values) / 1000) * 1.1 if all_values else 100
     
     bar_groups = []
@@ -189,10 +189,21 @@ def handle_export_action(dash, type):
 
 def apply_report_filters(dash):
     year_selected = dash.year_input.value
-    data_to_display = report_db.get(year_selected, [])
+    raw_data = report_db.get(year_selected, [])
+    
+    search_term = getattr(dash, "report_search_field", None)
+    search_value = search_term.value if search_term else ""
+    
+    filtered_data = SearchEngine.apply_logic(
+        data_list=raw_data,
+        search_term=search_value
+    )
 
     rows = []
-    for r in data_to_display:
+    for r in filtered_data:
+        if isinstance(r, str):
+            continue
+        
         month_with_year = f"{r.get('month', 'N/A')} {year_selected}"
         
         rev = r.get("revenue", 0)

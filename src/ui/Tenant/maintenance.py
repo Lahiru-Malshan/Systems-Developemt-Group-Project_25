@@ -8,8 +8,8 @@ from flet_charts import PieChart, PieChartSection
 
 import flet as ft
 
-# 1. Mock Data Global (Đưa ra ngoài để cập nhật dữ liệu khi Submit)
-# Cấu trúc: [ID, Category, Description, Priority, Status, Reported, Completed]
+# 1. Mock Data Global
+# Structure: [ID, Category, Description, Priority, Status, Reported, Completed]
 maintenance_data = [
     [101, "Plumbing", "Kitchen sink leaking", "High", "In Progress", "2026-02-15", "-"],
     [102, "Electrical", "AC Filter Cleaning", "Low", "Completed", "2026-01-22", "2026-01-23"],
@@ -159,10 +159,9 @@ def open_maintenance_form(dash):
             return
         global maintenance_data
 
-        # Thực hiện lưu vào database
         try:
             new_id = max([m[0] for m in maintenance_data]) + 1 if maintenance_data else 1
-            # Thêm dữ liệu mới vào List [ID, Cat, Desc, Priority, Status, Reported, Completed]
+
             new_record = [
                 new_id,
                 ref_category.value,

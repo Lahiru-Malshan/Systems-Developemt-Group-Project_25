@@ -27,7 +27,7 @@ def draw_my_profile_tab(dash, *args):
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     
-    # Section 2: Lease Details (Read Only - Thường lấy từ DB và không cho sửa)
+    # Section 2: Lease Details (Read Only)
     ref_start_date = ft.TextField(
         label="Start Date", value="2026-01-01", read_only=True,
         expand=True, bgcolor=ft.Colors.GREY_50, text_style=ft.TextStyle(color=TEXT_DARK)
@@ -38,7 +38,6 @@ def draw_my_profile_tab(dash, *args):
     )
 
     def handle_update_profile(e):
-        # Thu thập dữ liệu từ các Refs
         data_to_update = {
             "occupation": ref_occupation.value,
             "dob": ref_dob.value,
@@ -269,7 +268,7 @@ def open_add_card_dialog(dash):
         if not ref_card_num.value or not ref_holder.value:
             dash.show_message("Please fill in card details!")
             return
-        # LOGIC LƯU DATABASE TẠI ĐÂY
+        # LOGIC SAVE DATABASE
         print(f"Linking Card: {ref_card_num.value} for {ref_holder.value}")
         
         dash.close_dialog()

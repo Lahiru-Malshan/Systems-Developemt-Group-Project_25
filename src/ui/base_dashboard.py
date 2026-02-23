@@ -33,7 +33,7 @@ class BaseDashboard(ft.Container):
         self.sidebar_width = 270
         self.nav_container = ft.Column(spacing=5)
 
-        # Header are
+        # Header
         self.header_title = ft.Text("Dashboard", size=24, weight="bold", color=TEXT_DARK)
         self.header_subtitle = ft.Text("", size=13, color=TEXT_MUTED, weight="w500")
         
@@ -230,7 +230,7 @@ class BaseDashboard(ft.Container):
             modal=True,
             title=ft.Text(title, weight="bold", color=TEXT_DARK),
             content=ft.Container(
-                content=content, # Đây là nơi card_form sẽ hiện ra
+                content=content,
                 width=width,
                 height=height,
                 padding=10

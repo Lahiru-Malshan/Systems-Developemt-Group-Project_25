@@ -63,7 +63,7 @@ class FrontDeskDashboard(BaseDashboard):
             expand=True,
             vertical_alignment="start",
             controls=[
-                # Cột trái: Thông báo khẩn & Công việc (60%)
+                # LEFT COLUMN
                 ft.Column(
                     expand=6,
                     controls=[
@@ -74,7 +74,7 @@ class FrontDeskDashboard(BaseDashboard):
                         )
                     ]
                 ),
-                # Cột phải: Log bưu phẩm gần đây (40%)
+                # RIGHT COLUMN
                 ft.Column(
                     expand=4,
                     controls=[

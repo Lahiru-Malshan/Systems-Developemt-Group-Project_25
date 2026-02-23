@@ -307,7 +307,7 @@ def handle_save_branch(dash, city, address, admin, ni, email, phone):
         "status": "Active"
     })
     
-    # # 4. Gửi Email (Chạy ngầm hoặc gọi hàm)
+    # 4. Gửi Email (Chạy ngầm hoặc gọi hàm)
     # email_sent = send_activation_email(email, admin, city, temp_password)
 
     dash.show_message(f"Successfully expanded to {city}!")

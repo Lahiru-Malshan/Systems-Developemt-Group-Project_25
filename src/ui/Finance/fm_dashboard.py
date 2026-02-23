@@ -78,7 +78,7 @@ class FinanceDashboard(BaseDashboard):
                 ft.Text("Revenue vs Expenses", size=16, weight="bold", color=TEXT_DARK),
                 LineChart(
                     data_series=[
-                        # Đường Thu nhập (Revenue)
+                        # Revenue
                         LineChartData(
                             points=[
                                 LineChartDataPoint(0, 30), LineChartDataPoint(1, 35),
@@ -86,7 +86,7 @@ class FinanceDashboard(BaseDashboard):
                             ],
                             color=ACCENT_BLUE, stroke_width=4,
                         ),
-                        # Đường Chi phí (Expenses)
+                        # Expenses
                         LineChartData(
                             points=[
                                 LineChartDataPoint(0, 10), LineChartDataPoint(1, 15),
@@ -178,7 +178,7 @@ class FinanceDashboard(BaseDashboard):
         
     def handle_run_monthly_billing(self, e):
         """Automatically generate monthly rent invoices for all units that don't have an invoice for the current month yet"""
-        # Giả lập danh sách phòng cần thu tiền
+        
         units_to_bill = ["A-101", "B-302", "C-204", "D-505"]
         current_month = datetime.now().strftime("%b")
         count = 0

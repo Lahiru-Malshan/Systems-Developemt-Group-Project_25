@@ -102,7 +102,7 @@ def render_manager_data(self):
     Focuses on Bristol, Cardiff, London, and Manchester.
     """
     # 1. MOCK DATA: Performance by City
-    # Requirements: Financial summaries comparing collected vs pending [cite: 30]
+    # Requirements: Financial summaries comparing collected vs pending
     regional_data = [
         {"city": "London", "revenue": 450, "expenses": 120, "occupancy": "94%"},
         {"city": "Manchester", "revenue": 320, "expenses": 95, "occupancy": "88%"},
@@ -111,7 +111,7 @@ def render_manager_data(self):
     ]
 
     # 2. GENERATE BAR CHART (City Comparison)
-    # Requirement: Generate performance reports according to location [cite: 21]
+    # Requirement: Generate performance reports according to location
     all_values = []
     for item in regional_data:
         all_values.extend([item.get("revenue", 0), item.get("expenses", 0)])
@@ -174,7 +174,7 @@ def render_manager_data(self):
     ], spacing=10, expand=True)
 
     # 3. GENERATE REGIONAL TABLE
-    # Requirement: Insight into occupancy and financial performance [cite: 7]
+    # Requirement: Insight into occupancy and financial performance
     rows = []
     for item in regional_data:
         rows.append(

@@ -72,7 +72,7 @@ def render_financial_data(dash):
     chart_target = dash.fn_chart_container.content.controls[1]
     table_target = dash.fn_table_container.content.controls[1]
 
-    # MOCK DATA: Strategic financial overview per city [cite: 2, 30]
+    # MOCK DATA: Strategic financial overview per city
     # 'collected' vs 'pending' vs 'maint_costs'
     fn_data = [
         {"city": "London", "collected": 420, "pending": 30, "costs": 45},

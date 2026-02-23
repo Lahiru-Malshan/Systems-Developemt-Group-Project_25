@@ -21,8 +21,7 @@ def show_invoices(dash, *args):
     if not dash:
         return
     dash.content_column.controls.clear()
-    if not hasattr(dash, "invoice_list_column"):
-        dash.invoice_list_column = ft.Column(spacing=10, scroll=ft.ScrollMode.ALWAYS)
+    dash.invoice_list_column = ft.Column(spacing=10, scroll=ft.ScrollMode.ALWAYS)
 
     header = ft.Row([
         ft.Column([
@@ -89,24 +88,19 @@ def show_invoices(dash, *args):
 def apply_invoice_filters(dash):
     if not hasattr(dash, "invoice_list_column"):
         return
-    search_term = (dash.inv_search.value or "").lower()
+    
+    search_term = (dash.inv_search.value or "").upper()
     sel = dash.status_filter.selected
     selected_status = list(sel)[0] if sel else "ALL"
+    current_filters = {}
+    if selected_status != "ALL":
+        current_filters["status"] = selected_status
     
-    filtered = []
-    for inv in invoices_data:
-        match_search = (search_term in inv["id"].lower() or
-                        search_term in inv["room"].lower())
-
-        match_status = (selected_status == "ALL" or
-                        inv["status"] == selected_status)
-        
-        if match_search and match_status:
-            filtered.append(inv)
-            
-    # Giữ thứ tự mới nhất trước (insert 0 = đầu danh sách), không sort theo date
-    final_list = filtered
-
+    final_list = SearchEngine.apply_logic(
+        data_list=invoices_data,
+        search_term=search_term,
+        filters=current_filters
+    )
     dash.invoice_list_column.controls.clear()
     if not final_list:
         dash.invoice_list_column.controls.append(
@@ -173,7 +167,7 @@ def open_invoice_form(dash):
             vat_val = net_val * 0.20  # 20% VAT UK
             unit_display = f"{ref_block.value}-{ref_unit_number.value}"
             new_inv = {
-                "id": f"INV-{len(invoices_data) + 2001}",
+                "id": f"INV-{len(invoices_data) + 1}",
                 "room": unit_display,
                 "desc": ref_desc.value if ref_desc.value else "Manual Entry",
                 "net": net_val,

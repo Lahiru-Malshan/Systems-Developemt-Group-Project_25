@@ -14,8 +14,7 @@ import flet as ft
 class TenantDashboard(BaseDashboard):
     def __init__(self, page: ft.Page, username: str, role_name: str = "Tenant"):
         super().__init__(page, username, role_name=role_name)
-        
-        #Add Menu
+
         self.create_nav_btn(
             "Dashboard",ft.Icons.DASHBOARD_ROUNDED,lambda _: self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
         )
@@ -38,9 +37,7 @@ class TenantDashboard(BaseDashboard):
         
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self):
-        # ------------------------------------------------------
         # STAT CARDS
-        # ------------------------------------------------------
         stat_cards = ft.Row(
             spacing=20,
             controls=[
@@ -50,9 +47,7 @@ class TenantDashboard(BaseDashboard):
             ]
         )
         
-        # ------------------------------------------------------
         # CHART + TABLE AREA
-        # ------------------------------------------------------
         chart_table_row = ft.Row(
             spacing=20,
             controls=[
@@ -203,7 +198,6 @@ class TenantDashboard(BaseDashboard):
         sub_menu = ft.Row(tab_buttons, spacing=0)
 
         # 3. DYNAMIC CONTENT AREA
-        # Content Wrapper Card
         content_card = ft.Container(
             bgcolor=CARD_BG,
             padding=30,
@@ -216,8 +210,7 @@ class TenantDashboard(BaseDashboard):
                 self.detail_area
             ], scroll=ft.ScrollMode.AUTO)
         )
-        
-        # Render Update to Main Dashboard
+
         self.content_column.controls = [header_container, content_card]
         if self.page:
             self.page.update()

@@ -13,8 +13,8 @@ from logic.notifications import *
 from base_dashboard import *
 from logic.search import *
 
-# Mock data để test (Sau này sẽ thay bằng SQL SELECT)
-# Cấu trúc: [ID, Unit, Category, Description, Priority, Status, Date]
+# Mock data
+# Structure: [ID, Unit, Category, Description, Priority, Status, Date]
 test_work_orders = [
     {"id": "WO-001", "room": "302", "category": "Plumbing", "desc": "Kitchen sink leaking", "priority": "High", "status": "In Progress", "date": "2026-02-15", "days": 5},
     {"id": "WO-002", "room": "105", "category": "Electrical", "desc": "AC not cooling", "priority": "Medium", "status": "Pending", "date": "2026-02-16", "days": 4},
@@ -97,7 +97,16 @@ def apply_work_order_filters(dash):
     )
 
     status_order = {"Pending": 0, "In Progress": 1, "Assigned": 2, "Completed": 3}
-    final_list = sorted(filtered, key=lambda x: (status_order.get(x["status"], 99), x["date"]))
+    priority_order = {"High": 0, "Medium": 1, "Low": 2}
+    
+    final_list = sorted(
+        filtered,
+        key=lambda x: (
+            status_order.get(x["status"], 99),
+            priority_order.get(x["priority"], 99),
+            x["date"]
+        )
+    )
 
     dash.order_list_column.controls.clear()
     for order in final_list:
@@ -114,6 +123,12 @@ def open_create_order_modal(dash):
         options=[ft.dropdown.Option(x) for x in ["Plumbing", "Electrical", "General", "Elevator"]],
         border_color=ACCENT_BLUE
     )
+    ref_priority = ft.Dropdown(
+        label="Priority Level",
+        options=[ft.dropdown.Option(x) for x in ["High", "Medium", "Low"]],
+        value="Medium",
+        border_color=ACCENT_BLUE,
+    )
     ref_desc = ft.TextField(label="Issue Description", multiline=True, min_lines=3, border_color=ACCENT_BLUE)
 
     # --- 2. SUBMIT LOGIC ---
@@ -125,14 +140,14 @@ def open_create_order_modal(dash):
         # Add to our global test list (Mock DB)
         global test_work_orders
         current_date = datetime.now().strftime("%Y-%m-%d")
-        new_id = f"WO-{len(test_work_orders) + 1:03d}"
+        new_id = f"WO-{len(test_work_orders) + 1}"
         
         test_work_orders.insert(0, {
             "id": new_id,
             "room": ref_room.value,
             "category": ref_category.value if ref_category.value else "General",
             "desc": ref_desc.value,
-            "priority": "Medium",
+            "priority": ref_priority.value,
             "status": "Pending",
             "date": current_date,
             "days": 0
@@ -145,7 +160,7 @@ def open_create_order_modal(dash):
     # --- 3. MODAL UI ---
     dash.show_custom_modal(
         "Create New Work Order",
-        ft.Column([ref_room, ref_category, ref_desc], spacing=15, tight=True, width=400),
+        ft.Column([ref_room, ref_category, ref_priority, ref_desc], spacing=15, tight=True, width=400),
         [
             ft.Button("Cancel", on_click=dash.close_dialog),
             ft.Button("CREATE", bgcolor=ACCENT_BLUE, color="white", on_click=handle_submit_order)
@@ -167,6 +182,14 @@ def _create_work_order_item(dash, order):
         "Completed": ft.Colors.GREEN_700
     }
     s_color = status_colors.get(status, ft.Colors.GREY_400)
+    
+    priority = order.get("priority", "Low")
+    priority_colors = {
+        "High": ft.Colors.RED_700,
+        "Medium": ft.Colors.ORANGE_700,
+        "Low": ft.Colors.BLUE_GREY_400
+    }
+    p_color = priority_colors.get(priority, ft.Colors.GREY_400)
 
     if status == "Pending":
         action_button = ft.Button(
@@ -191,6 +214,12 @@ def _create_work_order_item(dash, order):
             ft.Column([
                 ft.Row([
                     ft.Text(cat, weight="bold", size=14, color=TEXT_DARK),
+                    ft.Container(
+                        content=ft.Text(priority, size=10, color="white", weight="bold"),
+                        bgcolor=p_color,
+                        padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                        border_radius=5
+                    ),
                     ft.Text(f"• {wo_id}", size=11, color=TEXT_MUTED),
                 ], spacing=10),
                 ft.Text(f"Unit: {room}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),

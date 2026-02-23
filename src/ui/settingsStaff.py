@@ -74,7 +74,7 @@ def show_settings(dash, *args):
         ], spacing=15)
     )
 
-    # --- 3. LOGOUT / DANGER ZONE (Optional but recommended) ---
+    # --- 3. LOGOUT / DANGER ZONE ---
     danger_card = ft.Container(
         bgcolor=ft.Colors.RED_50,
         padding=20,
