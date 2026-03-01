@@ -19,11 +19,11 @@ TEXT_WHITE = "#FFFFFF"
 class BaseDashboard(ft.Container):
     def __init__(self, page: ft.Page, username: str, role_name: str):
         super().__init__()
-        
-        page.padding = 0
         page.window_width = 1400
         page.window_height = 900
-
+        page.window_resizable = True
+        
+        page.padding = 0
         self.username = username
         self.role_name = role_name
 
@@ -173,9 +173,18 @@ class BaseDashboard(ft.Container):
             # 2. Clear current dashboard interface
             self.page.controls.clear()
             
-            # 3. Call your Login Screen
-            # If you have a function to show login
-            # self.show_login_screen()
+            self.page.window_width = 450
+            self.page.window_height = 650
+            self.page.window_resizable = False
+            try:
+                # Thử cách mới của Flet 0.21+
+                self.page.window.center()
+            except:
+                # Cách cũ hơn hoặc dự phòng
+                self.page.window_center = True
+            
+            import login_dashboard
+            login_dashboard.main(self.page)
             
             self.page.update()
 

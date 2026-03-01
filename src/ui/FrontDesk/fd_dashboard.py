@@ -47,6 +47,7 @@ class FrontDeskDashboard(BaseDashboard):
         )
     
     def show_overview(self, *args):
+
         self.detail_area = ft.Column(expand=True, spacing=15)
 
         stats_row = ft.Row(

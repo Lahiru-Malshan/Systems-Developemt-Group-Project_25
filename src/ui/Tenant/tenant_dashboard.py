@@ -14,7 +14,7 @@ import flet as ft
 class TenantDashboard(BaseDashboard):
     def __init__(self, page: ft.Page, username: str, role_name: str = "Tenant"):
         super().__init__(page, username, role_name=role_name)
-
+        
         self.create_nav_btn(
             "Dashboard",ft.Icons.DASHBOARD_ROUNDED,lambda _: self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
         )
@@ -144,8 +144,8 @@ class TenantDashboard(BaseDashboard):
                 ft.VerticalDivider(width=20, color="transparent"),
                 # Main Profile Information
                 ft.Column([
-                    ft.Text("Johnathan Doe", size=24, weight="bold", color=TEXT_DARK),
-                    ft.Text("Tenant ID: #PAMS-2026-001", size=14, weight="bold", color=TEXT_MUTED),
+                    ft.Text(self.username, size=24, weight="bold", color=TEXT_DARK),
+                    ft.Text(f"Role: {self.role_name}", size=14, weight="bold", color=TEXT_MUTED),
                     ft.Text("Apartment: Block B - Unit 302", size=14, weight="bold", color=ACCENT_BLUE),
                 ], spacing=5, expand=True),
                 # Control Buttons

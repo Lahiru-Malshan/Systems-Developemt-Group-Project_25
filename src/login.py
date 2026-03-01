@@ -17,7 +17,7 @@ def login(username, password):
 
         if user_val and bcrypt.checkpw(pass_val.encode('utf-8'), user['password_hash'].encode('utf-8')):
             # Login Successfully
-            return "Success"
+            return user
             
             # Can be redirect to Dashboard HERE
             # e.g., page.go("/dashboard")
