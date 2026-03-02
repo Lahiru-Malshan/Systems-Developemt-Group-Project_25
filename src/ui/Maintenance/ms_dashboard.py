@@ -26,6 +26,7 @@ class MaintenanceDashboard(BaseDashboard):
     
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self, *args):
+
         self.content_column.controls.clear()
 
         # --- 1. WELCOME HEADER ---

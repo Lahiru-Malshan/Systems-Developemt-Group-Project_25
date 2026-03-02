@@ -20,7 +20,7 @@ def register_user(username, password, first_name, last_name, email, role_name="T
 
         # Insert user
         cursor.execute("""
-            INSERT INTO users 
+            INSERT INTO users
             (role_id, username, password_hash, first_name, last_name, email)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (role_id, username, hashed_pw, first_name, last_name, email))

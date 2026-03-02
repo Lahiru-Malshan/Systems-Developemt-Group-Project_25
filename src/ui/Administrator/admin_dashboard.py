@@ -35,6 +35,7 @@ class AdminDashboard(BaseDashboard):
         self.create_nav_btn("Settings", ft.Icons.SETTINGS_ROUNDED, lambda _: self.switch_page("Settings", "Manage your account and preferences", show_settings))
 
     def show_dashboard(self, *args):
+
         self.content_column.controls.clear()
 
         # --- SECTION 1: STAT CARDS ---
