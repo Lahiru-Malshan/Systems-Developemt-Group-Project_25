@@ -13,15 +13,24 @@ transactions_data = [
 ]
 
 def show_payments(dash, *args):
-    if not dash: return
-    global transactions_data
+    if not dash:
+        return
+    if hasattr(dash, "backend"):
+        transactions = dash.backend.get_payments()
+    else:
+        transactions = transactions_data
     dash.content_column.controls.clear()
     
-    transactions_data.sort(key=lambda x: x[0], reverse=True)
+    transactions = sorted(transactions, key=lambda x: x["date"] if isinstance(x, dict) else x[0], reverse=True)
     
-    total_outstanding = sum(t[2] for t in transactions_data if t[3] == "Pending")
-    last_paid_entry = next((t for t in transactions_data if t[3] == "Paid"), None)
-    last_paid = f"£{last_paid_entry[2]:,.2f} ({last_paid_entry[0]})" if last_paid_entry else "£0.00"
+    total_outstanding = sum((t["amount"] if isinstance(t, dict) else t[2]) for t in transactions if (t["status"] if isinstance(t, dict) else t[3]) == "Pending")
+    last_paid_entry = next((t for t in transactions if (t["status"] if isinstance(t, dict) else t[3]) == "Paid"), None)
+    if last_paid_entry:
+        amount = last_paid_entry["amount"] if isinstance(last_paid_entry, dict) else last_paid_entry[2]
+        date = last_paid_entry["date"] if isinstance(last_paid_entry, dict) else last_paid_entry[0]
+        last_paid = f"£{amount:,.2f} ({date})"
+    else:
+        last_paid = "£0.00"
     
     # 1. Balance Overview (Cards)
     balance_cards = ft.Row(
@@ -35,7 +44,11 @@ def show_payments(dash, *args):
     
     # 2. Transaction History
     rows = []
-    for date, desc, amt, status in transactions_data:
+    for t in transactions:
+        date = t["date"] if isinstance(t, dict) else t[0]
+        desc = t["description"] if isinstance(t, dict) else t[1]
+        amt = t["amount"] if isinstance(t, dict) else t[2]
+        status = t["status"] if isinstance(t, dict) else t[3]
         status_color = ft.Colors.ORANGE_700 if status == "Pending" else ft.Colors.GREEN_700
         rows.append(
             ft.DataRow(
@@ -75,6 +88,7 @@ def show_payments(dash, *args):
     )
 
     # 3. Pay Action
+    current_invoice = f"£{total_outstanding:,.2f}" if total_outstanding else "£0.00"
     action_card = ft.Container(
         bgcolor=CARD_BG,
         padding=20,
@@ -82,7 +96,7 @@ def show_payments(dash, *args):
         width=300,
         content=ft.Column([
             ft.Text("Current Invoice", size=16, weight="bold",color=TEXT_DARK),
-            ft.Text("£1,250.00", size=28, weight="bold", color=TEXT_DARK),
+            ft.Text(current_invoice, size=28, weight="bold", color=TEXT_DARK),
             ft.Divider(),
             ft.Button(
                 "Make a Payment",
@@ -138,17 +152,15 @@ def open_payment_modal(dash):
             ref_amount.update()
             return
         
-        global transactions_data
         current_date = datetime.now().strftime("%Y-%m-%d")
-        
-        transactions_data.insert(0, [
-            current_date,
-            f"Payment via {ref_method.value}",
-            val,
-            "Paid"
-        ])
-        
-        dash.show_message(f"Success! Paid £{val:,.2f} successfully!")
+        success = False
+        message = "Payment added"
+        if hasattr(dash, "backend"):
+            success, message = dash.backend.add_payment(val, ref_method.value, f"Payment via {ref_method.value}")
+        if success:
+            dash.show_message(f"Success! Paid £{val:,.2f} successfully!")
+        else:
+            dash.show_message(f"Could not save payment: {message}")
         dash.close_dialog()
         show_payments(dash)
 

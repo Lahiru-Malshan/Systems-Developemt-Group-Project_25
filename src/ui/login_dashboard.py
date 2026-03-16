@@ -10,10 +10,10 @@ def main(page: ft.Page):
     page.window_width = 1400  
     page.window_height = 900
     page.update()
-    page.window.center()
+    # page.window.center() # deprecated await form in newer flet versions
     page.update()
     
-    page.window.resizable = False
+    page.window.resizable = True
     page.padding = 40
     page.bgcolor = "#F2F4F7"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
@@ -62,7 +62,7 @@ def main(page: ft.Page):
             page.add(FinanceDashboard(page, full_name, "Finance Manager"))
         elif role == 6:
             from ui.Tenant.tenant_dashboard import TenantDashboard
-            page.add(TenantDashboard(page, full_name, "Tenant"))
+            page.add(TenantDashboard(page, full_name, "Tenant", user_data=user_data))
      
         page.update()
 

@@ -76,14 +76,17 @@ def apply_notification_filters(dash, e=None):
 
     # --- CONNECT DATA (DICTIONARY) ---
     
-    raw_data = [
-        {"type": "Security", "title": "Parking Update", "msg": "New guest parking rules.", "date": "4 days ago", "days": 4, "unread": False},
-        {"type": "Billing", "title": "Rent Invoice Generated", "msg": "Your rent invoice for February is ready.", "date": "Today", "days": 0, "unread": True},
-        {"type": "General", "title": "Spring BBQ Party", "msg": "Join us for a BBQ party.", "date": "20 days ago", "days": 20, "unread": False},
-        {"type": "Maintenance", "title": "Elevator Repair", "msg": "Elevator maintenance in Block B.", "date": "Yesterday", "days": 1, "unread": True},
-        {"type": "Maintenance", "title": "Water Leak Fixed", "msg": "The leak in 3rd floor is fixed.", "date": "45 days ago", "days": 45, "unread": False},
-        {"type": "Billing", "title": "Payment Received", "msg": "Received payment for January.", "date": "10 days ago", "days": 10, "unread": False},
-    ]
+    if hasattr(dash, "backend"):
+        raw_data = dash.backend.get_notifications()
+    else:
+        raw_data = [
+            {"type": "Security", "title": "Parking Update", "msg": "New guest parking rules.", "date": "4 days ago", "days": 4, "unread": False},
+            {"type": "Billing", "title": "Rent Invoice Generated", "msg": "Your rent invoice for February is ready.", "date": "Today", "days": 0, "unread": True},
+            {"type": "General", "title": "Spring BBQ Party", "msg": "Join us for a BBQ party.", "date": "20 days ago", "days": 20, "unread": False},
+            {"type": "Maintenance", "title": "Elevator Repair", "msg": "Elevator maintenance in Block B.", "date": "Yesterday", "days": 1, "unread": True},
+            {"type": "Maintenance", "title": "Water Leak Fixed", "msg": "The leak in 3rd floor is fixed.", "date": "45 days ago", "days": 45, "unread": False},
+            {"type": "Billing", "title": "Payment Received", "msg": "Received payment for January.", "date": "10 days ago", "days": 10, "unread": False},
+        ]
 
     filtered = SearchEngine.apply_logic(raw_data, filters={"type": dash.type_filter.value})
 
