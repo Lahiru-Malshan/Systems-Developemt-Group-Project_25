@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 from time import sleep
 import flet as ft
 from matplotlib.pyplot import title
@@ -159,10 +161,16 @@ class BaseDashboard(ft.Container):
         self.header_subtitle.value = subtitle
         self.content_column.controls.clear()
         try:
-            page_content_func(self)
-        except TypeError:
-            page_content_func()
-        self.page.update()
+            try:
+                page_content_func(self)
+            except TypeError:
+                page_content_func()
+        except RuntimeError as ex:
+            if "Control must be added to the page first" not in str(ex):
+                raise
+
+        if self.parent:
+            self.page.update()
             
     # LOGOUT ACTION (Updated)
     def logout(self, e):

@@ -7,7 +7,7 @@ from login import login
 
 def main(page: ft.Page):
     page.title = "PAMS - Login"
-    page.window_width = 1400  
+    page.window_width = 1400
     page.window_height = 900
     page.update()
     # page.window.center() # deprecated await form in newer flet versions
@@ -44,7 +44,7 @@ def main(page: ft.Page):
         full_name = user_data.get("full_name", user_data.get("username"))
         page.controls.clear()
 
-        # Điều hướng dựa trên 6 Roles
+        # Access based on their roles
         if role == 1:
             from ui.Administrator.admin_dashboard import AdminDashboard
             page.add(AdminDashboard(page, full_name, "Administrator"))

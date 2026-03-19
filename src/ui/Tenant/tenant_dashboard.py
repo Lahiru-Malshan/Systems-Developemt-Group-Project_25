@@ -1,7 +1,8 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
 
 from base_dashboard import *
 from .payments import *
@@ -39,6 +40,8 @@ class TenantDashboard(BaseDashboard):
         self.create_nav_btn(
             "Settings",ft.Icons.SETTINGS_ROUNDED,lambda _: self.switch_page("Settings", "Manage your account and preferences", self.show_settings)
         )
+        
+        self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
         
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self):
@@ -97,13 +100,12 @@ class TenantDashboard(BaseDashboard):
                             ft.ListTile(
                                 leading=ft.Icon(ft.Icons.INFO_OUTLINE, color=ACCENT_BLUE),
                                 title=ft.Text("Hệ thống bảo trì điện", weight=ft.FontWeight.BOLD, color=TEXT_DARK, size=14),
-                                subtitle=ft.Text("Vào chủ nhật tuần này, từ 8:00 đến 12:00.",
-                                color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
+                                subtitle=ft.Text("Vào chủ nhật tuần này, từ 8:00 đến 12:00.", color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
                             ),
                             ft.ListTile(
                                 leading=ft.Icon(ft.Icons.CAMPAIGN_OUTLINED, color=ACCENT_BLUE),
-                                title=ft.Text("Thu gom rác"),
-                                subtitle=ft.Text("Vui lòng để rác đúng nơi quy định trước 7:00 sáng."),
+                                title=ft.Text("Thu gom rác", weight=ft.FontWeight.BOLD, color=TEXT_DARK, size=14),
+                                subtitle=ft.Text("Vui lòng để rác đúng nơi quy định trước 7:00 sáng.", color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
                             ),
                         ]
                     )
@@ -226,12 +228,13 @@ class TenantDashboard(BaseDashboard):
         self.content_column.controls = [header_container, content_card]
         if self.page:
             self.page.update()
-    
-def main(page: ft.Page):
-    dashboard = TenantDashboard(page, "Sara", "Tenant")
 
-    page.add(dashboard)
-    dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_dashboard)
+# #Test case
+# def main(page: ft.Page):
+#     dashboard = TenantDashboard(page, "Sara", "Tenant")
+
+#     page.add(dashboard)
+#     dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_dashboard)
             
-if __name__ == "__main__":
-    ft.run(main)
+# if __name__ == "__main__":
+#     ft.run(main)

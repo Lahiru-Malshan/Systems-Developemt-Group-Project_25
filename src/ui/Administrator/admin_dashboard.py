@@ -1,10 +1,8 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_path = os.path.abspath(os.path.join(current_dir, "../../"))
-if src_path not in sys.path:
-    sys.path.append(src_path)
 
 import flet as ft
 from flet_charts import BarChart, BarChartGroup, BarChartRod, ChartAxis, ChartAxisLabel, ChartGridLines
@@ -33,6 +31,8 @@ class AdminDashboard(BaseDashboard):
         )
         
         self.create_nav_btn("Settings", ft.Icons.SETTINGS_ROUNDED, lambda _: self.switch_page("Settings", "Manage your account and preferences", show_settings))
+
+        self.switch_page("Dashboard", "Branch Operational Lead", self.show_dashboard)
 
     def show_dashboard(self, *args):
 

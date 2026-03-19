@@ -4,8 +4,8 @@ from register import register_user
 def register_main(page: ft.Page):
     page.title = "Register"
     
-    page.window.width = 550
-    page.window.height = 700
+    page.window.width = 1400
+    page.window.height = 900
     page.update()
     page.window.center()
     page.update()
