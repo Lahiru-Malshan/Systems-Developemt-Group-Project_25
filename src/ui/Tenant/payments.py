@@ -17,7 +17,7 @@ transactions_data = [
 def show_payments(dash, *args):
     if not dash:
         return
-    
+
     invoices = []
     transactions = []
     if hasattr(dash, "backend"):
@@ -25,13 +25,15 @@ def show_payments(dash, *args):
         transactions = dash.backend.get_payments() if hasattr(dash.backend, "get_payments") else []
     else:
         transactions = transactions_data
+
     dash.content_column.controls.clear()
-    
+
     outstanding = sum(inv.get("amount", 0) for inv in invoices if inv.get("status") != "Paid")
     last_paid = next((t for t in transactions if t.get("status") == "Paid"), None)
     last_paid_label = f"£{last_paid['amount']:,.2f} ({last_paid['date']})" if last_paid else "£0.00"
 
     # 1. Balance Overview (Cards)
+
     balance_cards = ft.Row(
         spacing=20,
         controls=[
@@ -40,9 +42,10 @@ def show_payments(dash, *args):
             dash.create_stat_card("Open Invoices", str(len([i for i in invoices if i.get("status") != "Paid"])), ft.Icons.RECEIPT_LONG_ROUNDED),
         ]
     )
-    
+
     # 2. Invoice Rows & Transaction History
     # Invoice Rows
+
     invoice_rows = []
     for inv in sorted(invoices, key=lambda x: x.get("invoice_id", 0)):
         status = inv.get("status", "Unpaid")
@@ -58,10 +61,10 @@ def show_payments(dash, *args):
                 ]
             )
         )
-    
+
     invoice_table = ft.Container(
         bgcolor=CARD_BG,
-        padding=25,
+        padding=20,
         border_radius=12,
         expand=True,
         content=ft.Column([
@@ -79,7 +82,7 @@ def show_payments(dash, *args):
             )
         ], scroll=ft.ScrollMode.AUTO)
     )
-    
+
     payment_rows = []
     for t in transactions:
         payment_rows.append(
@@ -99,8 +102,9 @@ def show_payments(dash, *args):
         border_radius=12,
         expand=True,
         content=ft.Column([
-            ft.Text("Transaction History", size=18, weight="bold", color=TEXT_DARK),
+            ft.Text("Payment History", size=18, weight="bold", color=TEXT_DARK),
             ft.DataTable(
+                expand=True,
                 columns=[
                     ft.DataColumn(ft.Text("Date", weight="bold", color=TEXT_DARK)),
                     ft.DataColumn(ft.Text("Description", weight="bold", color=TEXT_DARK)),
@@ -126,7 +130,7 @@ def show_payments(dash, *args):
             ft.Text("Payment updates invoice status and history.", size=11, color=TEXT_MUTED, italic=True),
         ], horizontal_alignment="center")
     )
-    
+
     left_column = ft.Column(
         [invoice_table, history_table],
         expand=True,
@@ -147,7 +151,8 @@ def show_payments(dash, *args):
         main_row,
     ]
     dash.page.update()
-    
+
+
 def open_payment_modal(dash, invoices=None):
     unpaid = [inv for inv in (invoices or []) if inv.get("status") != "Paid"]
     invoice_options = [ft.dropdown.Option(str(inv.get("invoice_id"))) for inv in unpaid] if unpaid else [ft.dropdown.Option("0")]
@@ -197,5 +202,4 @@ def open_payment_modal(dash, invoices=None):
         show_payments(dash)
 
     content = ft.Column([ft.Text("Complete payment details"), invoice_dropdown, ref_amount, ref_method], spacing=10)
-    
     dash.show_custom_modal("Make Payment", content, [ft.TextButton("Cancel", on_click=dash.close_dialog), ft.Button("Confirm", bgcolor=ACCENT_BLUE, color="white", on_click=handle_confirm_payment)])

@@ -11,7 +11,7 @@
  Target Server Version : 90001 (9.0.1)
  File Encoding         : 65001
 
- Date: 18/03/2026 16:41:14
+ Date: 18/03/2026 19:18:57
 */
 
 SET NAMES utf8mb4;
@@ -200,13 +200,14 @@ CREATE TABLE `invoices` (
   KEY `lease_id` (`lease_id`),
   CONSTRAINT `invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`),
   CONSTRAINT `invoices_ibfk_2` FOREIGN KEY (`lease_id`) REFERENCES `lease_agreements` (`lease_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
 -- Records of invoices
 -- ----------------------------
 BEGIN;
-INSERT INTO `invoices` (`invoice_id`, `tenant_id`, `lease_id`, `amount`, `issue_date`, `due_date`, `status`) VALUES (1, 1, 1, 900.00, '2026-03-01', '2026-03-10', 'Unpaid');
+INSERT INTO `invoices` (`invoice_id`, `tenant_id`, `lease_id`, `amount`, `issue_date`, `due_date`, `status`) VALUES (1, 1, 1, 900.00, '2026-03-01', '2026-03-10', 'Paid');
+INSERT INTO `invoices` (`invoice_id`, `tenant_id`, `lease_id`, `amount`, `issue_date`, `due_date`, `status`) VALUES (2, 1, 1, 900.00, '2026-03-18', '2026-03-18', 'Paid');
 COMMIT;
 
 -- ----------------------------
@@ -275,13 +276,16 @@ CREATE TABLE `maintenance_requests` (
   CONSTRAINT `maintenance_requests_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`),
   CONSTRAINT `maintenance_requests_ibfk_2` FOREIGN KEY (`apartment_id`) REFERENCES `apartments` (`apartment_id`),
   CONSTRAINT `maintenance_requests_ibfk_3` FOREIGN KEY (`assigned_to`) REFERENCES `maintenance_staff` (`maintenance_staff_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
 -- Records of maintenance_requests
 -- ----------------------------
 BEGIN;
 INSERT INTO `maintenance_requests` (`request_id`, `tenant_id`, `apartment_id`, `description`, `status`, `reported_at`, `assigned_to`, `resolved_at`) VALUES (2, 1, 2, 'Leaking sink in kitchen', 'Pending', '2026-03-17 00:17:55', 1, NULL);
+INSERT INTO `maintenance_requests` (`request_id`, `tenant_id`, `apartment_id`, `description`, `status`, `reported_at`, `assigned_to`, `resolved_at`) VALUES (3, 2, 1, 'fixing light pub', 'Pending', '2026-03-18 17:39:59', NULL, NULL);
+INSERT INTO `maintenance_requests` (`request_id`, `tenant_id`, `apartment_id`, `description`, `status`, `reported_at`, `assigned_to`, `resolved_at`) VALUES (4, 1, 2, 'Leaky sink', 'Pending', '2026-03-18 17:46:01', NULL, NULL);
+INSERT INTO `maintenance_requests` (`request_id`, `tenant_id`, `apartment_id`, `description`, `status`, `reported_at`, `assigned_to`, `resolved_at`) VALUES (5, 1, 1, 'testing maintenance queue', 'Pending', '2026-03-18 17:58:46', NULL, NULL);
 COMMIT;
 
 -- ----------------------------
@@ -340,18 +344,25 @@ CREATE TABLE `payments` (
   `amount` decimal(10,2) NOT NULL,
   `payment_date` date DEFAULT NULL,
   `method` varchar(50) DEFAULT NULL,
+  `tenant_id` int DEFAULT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `status` enum('Pending','Paid','Failed') DEFAULT 'Paid',
   PRIMARY KEY (`payment_id`),
   KEY `invoice_id` (`invoice_id`),
   KEY `processed_by` (`processed_by`),
   CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `invoices` (`invoice_id`),
   CONSTRAINT `payments_ibfk_2` FOREIGN KEY (`processed_by`) REFERENCES `financial_managers` (`finance_manager_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=18 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- ----------------------------
 -- Records of payments
 -- ----------------------------
 BEGIN;
-INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`) VALUES (1, 1, 1, 900.00, '2026-03-05', 'Bank Transfer');
+INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`, `tenant_id`, `description`, `status`) VALUES (1, 1, 1, 900.00, '2026-03-05', 'Bank Transfer', 1, NULL, 'Paid');
+INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`, `tenant_id`, `description`, `status`) VALUES (3, 1, 1, 100.00, '2026-03-18', 'Card', 1, 'Test payment by tenant1', 'Paid');
+INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`, `tenant_id`, `description`, `status`) VALUES (6, 2, 1, 100.00, '2026-03-18', 'TestPay', 1, 'Test payment for invoice', 'Paid');
+INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`, `tenant_id`, `description`, `status`) VALUES (7, 2, 1, 200.00, '2026-03-18', 'PayPal', 1, 'Payment via PayPal', 'Paid');
+INSERT INTO `payments` (`payment_id`, `invoice_id`, `processed_by`, `amount`, `payment_date`, `method`, `tenant_id`, `description`, `status`) VALUES (17, 2, 1, 900.00, '2026-03-18', 'Visa / Mastercard', 1, 'Payment on invoice 2', 'Paid');
 COMMIT;
 
 -- ----------------------------
@@ -418,7 +429,7 @@ CREATE TABLE `tenants` (
 -- Records of tenants
 -- ----------------------------
 BEGIN;
-INSERT INTO `tenants` (`tenant_id`, `user_id`, `ni_number`, `occupation`) VALUES (1, 41, 'NI123456A', 'Software Engineer');
+INSERT INTO `tenants` (`tenant_id`, `user_id`, `ni_number`, `occupation`) VALUES (1, 35, 'NI123456A', 'Software Engineer');
 INSERT INTO `tenants` (`tenant_id`, `user_id`, `ni_number`, `occupation`) VALUES (2, 42, 'NI987654B', 'Teacher');
 COMMIT;
 
@@ -437,6 +448,8 @@ CREATE TABLE `users` (
   `phone_number` varchar(20) DEFAULT NULL,
   `account_status` enum('Active','Inactive') DEFAULT 'Active',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `nickname` varchar(50) DEFAULT NULL,
+  `dob` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`user_id`),
   UNIQUE KEY `username` (`username`),
   UNIQUE KEY `email` (`email`),
@@ -448,16 +461,16 @@ CREATE TABLE `users` (
 -- Records of users
 -- ----------------------------
 BEGIN;
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (33, 6, 'test_user2', '$2b$12$Szk2X3RPCJD3UXQNC682nenJbNKcaY8OHkHCJc.IGhJ7xBgip0Tni', 'Test', 'User', 'test2@example.com', NULL, 'Active', '2026-03-16 23:58:24');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (34, 1, 'admin', '$2b$12$MwsiV3mlNgALVX445RdeGeDQXA4WOK4MBqZQGoJEy7YHIXBKgBb7K', 'A', 'B', 'a@b.c', NULL, 'Active', '2026-03-16 23:59:20');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (35, 6, 'tenant', '$2b$12$72IjhjLYN/2Oxp6EGaSgwOJpY.irGNEJBsZQFJgqChnD3cc3V/3Lu', 'C', 'D', 'c@d.e', NULL, 'Active', '2026-03-16 23:59:20');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (36, 1, 'admin1', 'hash_admin', 'John', 'Smith', 'admin1@email.com', '0700000001', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (37, 2, 'manager1', 'hash_manager', 'Alice', 'Brown', 'manager@email.com', '0700000002', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (38, 3, 'frontdesk1', 'hash_fd', 'Mark', 'Lee', 'frontdesk@email.com', '0700000003', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (39, 4, 'maint1', 'hash_maint', 'Bob', 'Taylor', 'maint@email.com', '0700000004', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (40, 5, 'finance1', 'hash_finance', 'Sarah', 'White', 'finance@email.com', '0700000005', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (41, 6, 'tenant1', 'hash_tenant', 'David', 'Green', 'tenant@email.com', '0700000006', 'Active', '2026-03-17 00:10:28');
-INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`) VALUES (42, 6, 'tenant2', 'hash_tenant', 'Emma', 'Clark', 'tenant2@email.com', '0700000007', 'Active', '2026-03-17 00:10:28');
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (33, 6, 'test_user2', '$2b$12$Szk2X3RPCJD3UXQNC682nenJbNKcaY8OHkHCJc.IGhJ7xBgip0Tni', 'Test', 'User', 'test2@example.com', NULL, 'Active', '2026-03-16 23:58:24', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (34, 1, 'admin', '$2b$12$MwsiV3mlNgALVX445RdeGeDQXA4WOK4MBqZQGoJEy7YHIXBKgBb7K', 'A', 'B', 'a@b.c', NULL, 'Active', '2026-03-16 23:59:20', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (35, 6, 'tenant', '$2b$12$72IjhjLYN/2Oxp6EGaSgwOJpY.irGNEJBsZQFJgqChnD3cc3V/3Lu', 'C', 'D', 'x@y.com', '123', 'Active', '2026-03-16 23:59:20', 'NewNick', '1990-01-01');
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (36, 1, 'admin1', 'hash_admin', 'John', 'Smith', 'admin1@email.com', '0700000001', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (37, 2, 'manager1', 'hash_manager', 'Alice', 'Brown', 'manager@email.com', '0700000002', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (38, 3, 'frontdesk1', 'hash_fd', 'Mark', 'Lee', 'frontdesk@email.com', '0700000003', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (39, 4, 'maint1', 'hash_maint', 'Bob', 'Taylor', 'maint@email.com', '0700000004', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (40, 5, 'finance1', 'hash_finance', 'Sarah', 'White', 'finance@email.com', '0700000005', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (41, 6, 'tenant1', 'hash_tenant', 'David', 'Green', 'tenant@email.com', '0700000006', 'Active', '2026-03-17 00:10:28', NULL, NULL);
+INSERT INTO `users` (`user_id`, `role_id`, `username`, `password_hash`, `first_name`, `last_name`, `email`, `phone_number`, `account_status`, `created_at`, `nickname`, `dob`) VALUES (42, 6, 'tenant2', 'hash_tenant', 'Emma', 'Clark', 'tenant2@email.com', '0700000007', 'Active', '2026-03-17 00:10:28', NULL, NULL);
 COMMIT;
 
 SET FOREIGN_KEY_CHECKS = 1;

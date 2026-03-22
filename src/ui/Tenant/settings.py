@@ -13,14 +13,15 @@ def draw_my_profile_tab(dash, *args):
     profile = dash.backend.get_profile() if hasattr(dash, "backend") else {}
     
     # Section 1: Personal Information
-    ref_occupation = ft.TextField(
-        label="Occupation", value=profile.get("occupation", "Tenant"), expand=True,
+    ref_nickname = ft.TextField(
+        label="Nickname", value=profile.get("nickname", profile.get("occupation", "Tenant")), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     ref_dob = ft.TextField(
         label="Date of Birth", value=profile.get("dob", ""), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
+    
     ref_phone = ft.TextField(
         label="Phone", value=profile.get("phone", ""), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
@@ -42,7 +43,7 @@ def draw_my_profile_tab(dash, *args):
 
     def handle_update_profile(e):
         data_to_update = {
-            "occupation": ref_occupation.value,
+            "nickname": ref_nickname.value,
             "dob": ref_dob.value,
             "phone": ref_phone.value,
             "email": ref_email.value
@@ -62,7 +63,7 @@ def draw_my_profile_tab(dash, *args):
     # LAYOUT
     personal_section = ft.Column([
         ft.Text("Personal Information", size=18, weight="bold", color=TEXT_DARK),
-        ft.Row([ref_occupation, ref_dob], spacing=20),
+        ft.Row([ref_nickname, ref_dob], spacing=20),
         ft.Row([ref_phone, ref_email], spacing=20),
     ], spacing=15)
     lease_section = ft.Column([
