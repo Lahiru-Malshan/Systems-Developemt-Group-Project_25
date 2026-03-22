@@ -2,27 +2,8 @@ import bcrypt
 from datetime import datetime
 from db import get_db_connection
 
-
 class TenantBackend:
     # Fallback mock data for environments without full schema
-    _mock_payments = [
-        {"date": "2025-10-01", "description": "Monthly Rent - October", "amount": 1200.00, "status": "Pending", "method": "Bank Transfer"},
-        {"date": "2025-09-05", "description": "Monthly Rent - September", "amount": 1200.00, "status": "Paid", "method": "Card"},
-        {"date": "2025-08-28", "description": "Water Bill - August", "amount": 50.00, "status": "Paid", "method": "Card"},
-    ]
-
-    _mock_maintenance = [
-        {"id": 101, "category": "Plumbing", "description": "Kitchen sink leaking", "priority": "High", "status": "In Progress", "created_date": "2026-02-15", "completed_date": None},
-        {"id": 102, "category": "Electrical", "description": "AC Filter Cleaning", "priority": "Low", "status": "Completed", "created_date": "2026-01-22", "completed_date": "2026-01-23"},
-        {"id": 103, "category": "Furniture", "description": "Broken door handle", "priority": "Medium", "status": "Pending", "created_date": "2026-02-10", "completed_date": None},
-    ]
-
-    _mock_notifications = [
-        {"id": 1, "type": "Security", "title": "Parking Update", "msg": "New guest parking rules.", "date": "4 days ago", "days": 4, "unread": False},
-        {"id": 2, "type": "Billing", "title": "Rent Invoice Generated", "msg": "Your rent invoice for February is ready.", "date": "Today", "days": 0, "unread": True},
-        {"id": 3, "type": "General", "title": "Spring BBQ Party", "msg": "Join us for a BBQ party.", "date": "20 days ago", "days": 20, "unread": False},
-        {"id": 4, "type": "Maintenance", "title": "Elevator Repair", "msg": "Elevator maintenance in Block B.", "date": "Yesterday", "days": 1, "unread": True},
-    ]
 
     def __init__(self, user_id=None, username=None):
         self.user_id = user_id
@@ -57,7 +38,7 @@ class TenantBackend:
                 "lease_start": "2026-01-01",
                 "lease_end": "2027-01-01",
             }
-        user = self._safe_query("SELECT username, email, phone_number, first_name, last_name FROM users WHERE user_id = %s", (self.user_id,), fetch_one=True)
+        user = self._safe_query("SELECT username, email, phone_number, first_name, last_name, nickname, dob FROM users WHERE user_id = %s", (self.user_id,), fetch_one=True)
         if not user:
             return {
                 "username": self.username or "Tenant",
@@ -74,7 +55,7 @@ class TenantBackend:
             "last_name": user.get("last_name", ""),
             "email": user.get("email", ""),
             "phone": user.get("phone_number", ""),
-            "occupation": user.get("occupation", "Tenant"),
+            "nickname": user.get("nickname") or f"{user.get('first_name','')} {user.get('last_name','')}".strip() or "Tenant",
             "dob": user.get("dob", "N/A"),
             "lease_start": user.get("lease_start", "2026-01-01"),
             "lease_end": user.get("lease_end", "2027-01-01"),
@@ -83,12 +64,12 @@ class TenantBackend:
     def update_profile(self, updates):
         if self.user_id is None:
             return False, "No user ID set"
-        allowed = {"occupation", "dob", "phone", "email", "first_name", "last_name"}
+        allowed = {"nickname", "dob", "phone", "email", "first_name", "last_name"}
         data = {k: v for k, v in updates.items() if k in allowed and v is not None}
         if not data:
             return False, "No valid fields"
 
-        col_map = {"phone": "phone_number", "dob": "dob"}
+        col_map = {"nickname": "nickname", "phone": "phone_number", "dob": "dob", "first_name": "first_name", "last_name": "last_name", "email": "email"}
         query_data = {}
         for k, v in data.items():
             col = col_map.get(k, k)
@@ -151,149 +132,223 @@ class TenantBackend:
 
     def get_payments(self):
         if self.user_id is None:
-            return self._mock_payments
-        records = self._safe_query("SELECT date, description, amount, status, method FROM payments WHERE user_id = %s ORDER BY date DESC", (self.user_id,))
+            return []
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return []
+        records = self._safe_query("SELECT payment_id, invoice_id, amount, payment_date, method, description, status FROM payments WHERE tenant_id = %s ORDER BY payment_date DESC", (tenant["tenant_id"],))
         if not records:
-            return self._mock_payments
+            return []
         return [
             {
-                "date": str(r.get("date")) if r.get("date") else "",
-                "description": r.get("description", ""),
+                "date": str(r.get("payment_date", "")),
+                "description": r.get("description") or f"Payment #{r.get('payment_id')}",
                 "amount": float(r.get("amount", 0.0)),
-                "status": r.get("status", "Pending"),
+                "status": r.get("status", "Paid"),
                 "method": r.get("method", "Unknown"),
             }
             for r in records
         ]
 
     def add_payment(self, amount: float, method: str, description: str):
+        # Keep compatibility as a simple alias for make_payment
+        return self.make_payment(amount=amount, method=method, description=description)
+
+    def make_payment(self, amount: float, method: str, description: str, invoice_id: int = None):
         if self.user_id is None:
-            self._mock_payments.insert(0, {
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "description": description,
-                "amount": float(amount),
-                "status": "Paid",
-                "method": method,
-            })
-            return True, "Payment added"
+            return False, "User not authenticated"
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return False, "Tenant record not found"
+        if amount <= 0:
+            return False, "Amount must be greater than zero"
+
         try:
             conn = self._db()
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO payments (user_id, date, description, amount, status, method) VALUES (%s, %s, %s, %s, %s, %s)", (
-                self.user_id,
-                datetime.now().strftime("%Y-%m-%d"),
-                description,
-                amount,
-                "Paid",
-                method,
-            ))
+            invoice_amount = 0
+
+            if invoice_id is None:
+                invoice_row = self._safe_query(
+                    "SELECT i.invoice_id, i.amount FROM invoices i WHERE i.tenant_id = %s AND i.status <> 'Paid' ORDER BY i.due_date ASC LIMIT 1",
+                    (tenant["tenant_id"],),
+                    fetch_one=True,
+                )
+                if invoice_row:
+                    invoice_id = invoice_row.get("invoice_id")
+                    invoice_amount = float(invoice_row.get("amount", 0))
+                else:
+                    lease = self.get_lease_agreement()
+                    if not lease:
+                        cursor.close()
+                        conn.close()
+                        return False, "No active lease found to create invoice"
+                    invoice_amount = float(lease.get("monthly_rent", amount))
+                    issue_date = datetime.now().date()
+                    due_date = issue_date
+                    cursor.execute(
+                        "INSERT INTO invoices (tenant_id, lease_id, amount, issue_date, due_date, status) VALUES (%s, %s, %s, %s, %s, %s)",
+                        (
+                            tenant["tenant_id"],
+                            lease["lease_id"],
+                            invoice_amount,
+                            issue_date,
+                            due_date,
+                            "Unpaid",
+                        ),
+                    )
+                    invoice_id = cursor.lastrowid
+
+            cursor.execute(
+                "INSERT INTO payments (tenant_id, invoice_id, processed_by, amount, payment_date, method, description, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    tenant["tenant_id"],
+                    invoice_id or 0,
+                    1,
+                    amount,
+                    datetime.now().strftime("%Y-%m-%d"),
+                    method,
+                    description,
+                    "Paid",
+                ),
+            )
+
+            if invoice_id is not None:
+                if not invoice_amount:
+                    invoice_row = self._safe_query("SELECT amount FROM invoices WHERE invoice_id = %s", (invoice_id,), fetch_one=True)
+                    invoice_amount = float(invoice_row.get("amount", 0)) if invoice_row else 0
+                if amount >= invoice_amount:
+                    cursor.execute("UPDATE invoices SET status = 'Paid' WHERE invoice_id = %s", (invoice_id,))
+                else:
+                    cursor.execute("UPDATE invoices SET status = 'Late' WHERE invoice_id = %s", (invoice_id,))
+
             conn.commit()
             cursor.close()
             conn.close()
-            return True, "Payment added"
-        except Exception:
-            self._mock_payments.insert(0, {
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "description": description,
-                "amount": float(amount),
-                "status": "Paid",
-                "method": method,
-            })
-            return True, "Payment added (fallback)"
+            return True, "Payment processed and saved"
+        except Exception as ex:
+            return False, str(ex)
+
 
     def get_maintenance_requests(self):
         if self.user_id is None:
-            return self._mock_maintenance
-        records = self._safe_query("SELECT id, category, description, priority, status, created_date, completed_date FROM maintenance_requests WHERE user_id = %s ORDER BY created_date DESC", (self.user_id,))
+            return []
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return []
+        records = self._safe_query("SELECT request_id, apartment_id, description, status, reported_at, resolved_at FROM maintenance_requests WHERE tenant_id = %s ORDER BY request_id DESC", (tenant["tenant_id"],))
         if not records:
-            return self._mock_maintenance
+            return []
         return [
             {
-                "id": r.get("id"),
-                "category": r.get("category", "General"),
+                "id": r.get("request_id"),
+                "apartment_id": r.get("apartment_id"),
                 "description": r.get("description", ""),
-                "priority": r.get("priority", "Medium"),
                 "status": r.get("status", "Pending"),
-                "created_date": str(r.get("created_date", "")),
-                "completed_date": str(r.get("completed_date", "-")) if r.get("completed_date") else "-",
+                "reported_at": str(r.get("reported_at", "")),
+                "resolved_at": str(r.get("resolved_at", "-")) if r.get("resolved_at") else "-",
             }
             for r in records
         ]
 
     def create_maintenance_request(self, category: str, description: str, priority: str):
         if self.user_id is None:
-            new_id = max((r["id"] for r in self._mock_maintenance), default=100) + 1
-            self._mock_maintenance.insert(0, {
-                "id": new_id,
-                "category": category,
-                "description": description,
-                "priority": priority,
-                "status": "Pending",
-                "created_date": datetime.now().strftime("%Y-%m-%d"),
-                "completed_date": None,
-            })
-            return True, "Request submitted"
+            return False, "User not authenticated"
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return False, "Tenant record not found"
+
+        lease = self._safe_query("SELECT apartment_id FROM lease_agreements WHERE tenant_id = %s ORDER BY start_date DESC LIMIT 1", (tenant["tenant_id"],), fetch_one=True)
+        apartment_id = lease.get("apartment_id") if lease else None
+
         try:
             conn = self._db()
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO maintenance_requests (user_id, category, description, priority, status, created_date) VALUES (%s, %s, %s, %s, %s, %s)", (
-                self.user_id,
-                category,
+            cursor.execute("INSERT INTO maintenance_requests (tenant_id, apartment_id, description, status, reported_at) VALUES (%s, %s, %s, %s, %s)", (
+                tenant["tenant_id"],
+                apartment_id or 0,
                 description,
-                priority,
                 "Pending",
-                datetime.now().strftime("%Y-%m-%d"),
+                datetime.now(),
             ))
             conn.commit()
             cursor.close()
             conn.close()
             return True, "Request submitted"
-        except Exception:
-            new_id = max((r["id"] for r in self._mock_maintenance), default=100) + 1
-            self._mock_maintenance.insert(0, {
-                "id": new_id,
-                "category": category,
-                "description": description,
-                "priority": priority,
-                "status": "Pending",
-                "created_date": datetime.now().strftime("%Y-%m-%d"),
-                "completed_date": None,
-            })
-            return True, "Request submitted (fallback)"
+        except Exception as ex:
+            return False, str(ex)
+
 
     def get_notifications(self):
-        if self.user_id is None:
-            return self._mock_notifications
-        records = self._safe_query("SELECT id, type, title, msg, date, unread FROM notifications WHERE user_id = %s ORDER BY date DESC", (self.user_id,))
-        if not records:
-            return self._mock_notifications
-        return [
-            {
-                "id": r.get("id"),
-                "type": r.get("type", "General"),
-                "title": r.get("title", ""),
-                "msg": r.get("msg", ""),
-                "date": str(r.get("date", "")),
-                "days": 0,
-                "unread": bool(r.get("unread", 0)),
-            }
-            for r in records
-        ]
+        return []
 
     def mark_notification_read(self, notification_id):
+        return False
+
+    def get_tenant_record(self):
         if self.user_id is None:
-            for note in self._mock_notifications:
-                if note["id"] == notification_id:
-                    note["unread"] = False
-                    return True
-            return False
+            return None
+        row = self._safe_query("SELECT tenant_id, ni_number, occupation FROM tenants WHERE user_id = %s", (self.user_id,), fetch_one=True)
+        return row
+
+    def get_lease_agreement(self):
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return None
+        row = self._safe_query("SELECT l.lease_id, l.start_date, l.end_date, l.monthly_rent, a.apartment_number FROM lease_agreements l JOIN apartments a ON l.apartment_id = a.apartment_id WHERE l.tenant_id = %s ORDER BY l.start_date DESC LIMIT 1", (tenant["tenant_id"],), fetch_one=True)
+        return row
+
+    def get_invoices(self):
+        if self.user_id is None:
+            return []
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return []
+        rows = self._safe_query("SELECT i.invoice_id, i.issue_date, i.due_date, i.amount, i.status FROM invoices i JOIN lease_agreements l ON i.lease_id = l.lease_id WHERE l.tenant_id = %s ORDER BY issue_date DESC", (tenant["tenant_id"],))
+        if not rows:
+            return []
+        return [{
+            "invoice_id": r.get("invoice_id"),
+            "issue_date": str(r.get("issue_date", "")),
+            "due_date": str(r.get("due_date", "")),
+            "amount": float(r.get("amount", 0.0)),
+            "status": r.get("status", "Unpaid")
+        } for r in rows]
+
+    def get_complaints(self):
+        if self.user_id is None:
+            return []
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return []
+        rows = self._safe_query("SELECT c.complaint_id, c.description, c.status, c.created_at FROM complaints c WHERE c.tenant_id = %s ORDER BY c.created_at DESC", (tenant["tenant_id"],))
+        if not rows:
+            return []
+        return [{
+            "complaint_id": r.get("complaint_id"),
+            "description": r.get("description", ""),
+            "status": r.get("status", "Open"),
+            "created_at": str(r.get("created_at", ""))
+        } for r in rows]
+
+    def submit_complaint(self, description: str):
+        if self.user_id is None:
+            return False, "User not authenticated"
+        tenant = self.get_tenant_record()
+        if not tenant:
+            return False, "Tenant record not found"
         try:
             conn = self._db()
             cursor = conn.cursor()
-            cursor.execute("UPDATE notifications SET unread = 0 WHERE id = %s AND user_id = %s", (notification_id, self.user_id))
+            cursor.execute("INSERT INTO complaints (tenant_id, description, status, created_at) VALUES (%s, %s, %s, %s)", (
+                tenant["tenant_id"],
+                description,
+                "Open",
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            ))
             conn.commit()
             cursor.close()
             conn.close()
-            return True
-        except Exception:
-            return False
+            return True, "Complaint submitted"
+        except Exception as err:
+            return False, str(err)

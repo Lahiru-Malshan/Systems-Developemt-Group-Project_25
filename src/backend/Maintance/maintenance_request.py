@@ -3,6 +3,8 @@ from db import get_db_connection
 
 
 def create_maintenance_request(tenant_id, apartment_id, description):
+    if not tenant_id:
+        raise ValueError("tenant_id is required")
     conn = None
     cursor = None
 
@@ -37,4 +39,3 @@ def create_maintenance_request(tenant_id, apartment_id, description):
             cursor.close()
         if conn:
             conn.close()
-

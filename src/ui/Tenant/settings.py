@@ -357,7 +357,7 @@ def draw_support_tab(dash):
             ft.Divider(),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.PHONE_ROUNDED, color=ACCENT_BLUE),
-                title=ft.Text("Phone: +84 123 456 789", weight="bold", color=TEXT_DARK),
+                title=ft.Text("Phone: +44 123 456 789", weight="bold", color=TEXT_DARK),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.EMAIL_ROUNDED, color=ACCENT_BLUE),
