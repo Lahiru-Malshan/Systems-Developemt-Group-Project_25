@@ -14,7 +14,7 @@ def draw_my_profile_tab(dash, *args):
     
     # Section 1: Personal Information
     ref_nickname = ft.TextField(
-        label="Nickname", value=profile.get("nickname", profile.get("occupation", "Tenant")), expand=True,
+        label="Nickname", value=profile.get("nickname", profile.get("occupation", "")), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     ref_dob = ft.TextField(
