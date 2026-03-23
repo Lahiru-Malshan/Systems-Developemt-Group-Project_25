@@ -6,10 +6,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import flet as ft
 from base_dashboard import *
 from logic.search import *
-
-staff_data = [
-    {"ni": "AB123456C", "name": "John Wick", "role": "Front Desk", "status": "Active"},
-]
+import db # IMPORTANT: Import your database file!
 
 def show_user(dash, tab_index=0, *args):
     dash.content_column.controls.clear()
@@ -17,6 +14,9 @@ def show_user(dash, tab_index=0, *args):
     # TAB 1: STAFF MANAGEMENT
     def get_staff_view():
         search_val = getattr(dash, "staff_search", ft.TextField()).value or ""
+        
+        # 1. FETCH FROM DATABASE INSTEAD OF HARDCODED LIST
+        staff_data = db.get_all_staff()
         
         current_rows = []
         for staff in staff_data:
@@ -28,16 +28,23 @@ def show_user(dash, tab_index=0, *args):
                         ft.DataCell(ft.Text(staff["role"], color=TEXT_DARK)),
                         ft.DataCell(
                             ft.Container(
-                                content=ft.Text(staff["status"], size=12, color="green"),
-                                bgcolor=ft.Colors.with_opacity(0.1, "green"),
+                                content=ft.Text(staff["status"], size=12, color="green" if staff["status"] == "Active" else "red"),
+                                bgcolor=ft.Colors.with_opacity(0.1, "green" if staff["status"] == "Active" else "red"),
                                 padding=5,
                                 border_radius=5
                             )
                         ),
                         ft.DataCell(
                             ft.Row([
-                                ft.IconButton(ft.Icons.EDIT, icon_size=18, icon_color=TEXT_DARK),
-                                ft.IconButton(ft.Icons.DELETE, icon_color="red", icon_size=18)
+                                # 2. ATTACH ON_CLICK EVENTS TO BUTTONS
+                                ft.IconButton(
+                                    ft.Icons.EDIT, icon_size=18, icon_color=TEXT_DARK,
+                                    on_click=lambda e, s=staff: edit_staff(dash, s)
+                                ),
+                                ft.IconButton(
+                                    ft.Icons.DELETE, icon_color="red", icon_size=18,
+                                    on_click=lambda e, ni=staff["ni"]: delete_staff_record(dash, ni)
+                                )
                             ])
                         ),
                     ])
@@ -77,12 +84,10 @@ def show_user(dash, tab_index=0, *args):
             )
         ], spacing=20, scroll=ft.ScrollMode.AUTO)
         
-    # TAB 2: RESIDENTS APPROVALS
+    # TAB 2: RESIDENTS APPROVALS (Unchanged)
     def get_resident_view():
         search_val = getattr(dash, "res_search", ft.TextField()).value or ""
-        
         residents = [{"name": "Alice Smith", "unit": "A-101", "type": "Tenant", "date": "2026-02-22"}]
-        
         rows = []
         for r in residents:
             if search_val.lower() in r["name"].lower() or search_val.lower() in r["unit"].lower():
@@ -123,7 +128,7 @@ def show_user(dash, tab_index=0, *args):
             )
         ], spacing=20, scroll=ft.ScrollMode.AUTO)
         
-    # TAB 3: SECURITY LOGS
+    # TAB 3: SECURITY LOGS (Unchanged)
     def get_logs_view():
         logs_list = ft.ListView(expand=True, spacing=10)
         logs = [
@@ -167,24 +172,9 @@ def show_user(dash, tab_index=0, *args):
                 ft.TabBarView(
                     expand=True,
                     controls=[
-                        # TAB 1
-                        ft.Column(
-                            expand=True,
-                            scroll=ft.ScrollMode.AUTO,
-                            controls=[get_staff_view()]
-                        ),
-                        # TAB 2
-                        ft.Column(
-                            expand=True,
-                            scroll=ft.ScrollMode.AUTO,
-                            controls=[get_resident_view()]
-                        ),
-                        # TAB 3
-                        ft.Column(
-                            expand=True,
-                            scroll=ft.ScrollMode.AUTO,
-                            controls=[get_logs_view()]
-                        ),
+                        ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[get_staff_view()]),
+                        ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[get_resident_view()]),
+                        ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[get_logs_view()]),
                     ]
                 )
             ]
@@ -194,6 +184,58 @@ def show_user(dash, tab_index=0, *args):
     dash.content_column.controls.append(tabs)
     dash.page.update()
 
+# --- NEW: DELETE FUNCTION ---
+def delete_staff_record(dash, ni):
+    db.delete_staff(ni)
+    dash.show_message(f"Staff record {ni} deleted.")
+    show_user(dash, tab_index=0) # Refresh the UI
+
+# --- NEW: EDIT FUNCTION ---
+def edit_staff(dash, staff):
+    name_input = ft.TextField(label="Full Name", value=staff["name"], border_color=ACCENT_BLUE)
+    role_input = ft.Dropdown(
+        label="Role",
+        border_color=ACCENT_BLUE,
+        options=[
+            ft.dropdown.Option("Front Desk"),
+            ft.dropdown.Option("Maintenance"),
+            ft.dropdown.Option("Security"),
+            ft.dropdown.Option("Manager"),
+        ],
+        value=staff["role"]
+    )
+    status_input = ft.Dropdown(
+        label="Status",
+        border_color=ACCENT_BLUE,
+        options=[ft.dropdown.Option("Active"), ft.dropdown.Option("Inactive")],
+        value=staff["status"]
+    )
+
+    def handle_update(e):
+        if not name_input.value:
+            dash.show_message("Name cannot be empty!")
+            return
+        
+        # Save changes to database
+        db.update_staff(staff["ni"], name_input.value, role_input.value, status_input.value)
+        dash.close_dialog()
+        dash.show_message("Staff updated successfully!")
+        show_user(dash, tab_index=0) # Refresh the UI
+
+    content = ft.Column([
+        ft.Text(f"Editing record for NI: {staff['ni']}", weight="bold"),
+        name_input,
+        role_input,
+        status_input
+    ], tight=True, spacing=15, width=400)
+
+    actions = [
+        ft.TextButton("Cancel", on_click=lambda _: dash.close_dialog()),
+        ft.ElevatedButton("UPDATE", bgcolor=ACCENT_BLUE, color="white", on_click=handle_update)
+    ]
+    dash.show_custom_modal("Edit Staff", content, actions)
+
+# --- UPDATED: REGISTER FUNCTION ---
 def register_staff(dash, *args):
     ni_input = ft.TextField(
         label="National Insurance (NI) Number",
@@ -223,17 +265,16 @@ def register_staff(dash, *args):
             dash.show_message("Please fill in all required fields!")
             return
 
-        staff_data.insert(0, {
-            "ni": ni_input.value.upper(),
-            "name": name_input.value,
-            "role": role_input.value,
-            "status": "Active"
-        })
+        # 3. SAVE TO DATABASE INSTEAD OF LIST
+        success = db.add_staff(ni_input.value.upper(), name_input.value, role_input.value)
         
-        dash.close_dialog()
-        dash.show_message(f"Staff {name_input.value} registered!")
-        show_user(dash)
-        
+        if success:
+            dash.close_dialog()
+            dash.show_message(f"Staff {name_input.value} registered!")
+            show_user(dash, tab_index=0) # Refresh the UI
+        else:
+            dash.show_message("Error: That NI Number might already exist.")
+
     content = ft.Column([
         ft.Text("Register a new staff member for this branch."),
         ni_input,
