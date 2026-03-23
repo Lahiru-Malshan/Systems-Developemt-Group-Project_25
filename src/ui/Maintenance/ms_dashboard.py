@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 
@@ -23,6 +25,8 @@ class MaintenanceDashboard(BaseDashboard):
         self.create_nav_btn(
             "Settings",ft.Icons.SETTINGS_ROUNDED,lambda _: self.switch_page("Settings", "Manage your account and preferences", show_settings)
         )
+
+        self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
     
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self, *args):
@@ -122,7 +126,8 @@ class MaintenanceDashboard(BaseDashboard):
                 bgcolor=color, padding=ft.Padding.symmetric(horizontal=8, vertical=2), border_radius=5
             )
         ])
-        
+
+#Test case
 def main(page: ft.Page):
     dashboard = MaintenanceDashboard(page, "Sara", "Maintenance Staff")
 

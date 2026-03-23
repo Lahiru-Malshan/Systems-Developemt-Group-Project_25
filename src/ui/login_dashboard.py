@@ -10,10 +10,8 @@ def main(page: ft.Page):
     page.window_width = 1400  
     page.window_height = 900
     page.update()
-    page.window.center()
-    page.update()
     
-    page.window.resizable = False
+    page.window.resizable = True
     page.padding = 40
     page.bgcolor = "#F2F4F7"
     page.vertical_alignment = ft.MainAxisAlignment.CENTER
@@ -44,34 +42,43 @@ def main(page: ft.Page):
         full_name = user_data.get("full_name", user_data.get("username"))
         page.controls.clear()
 
+        dashboard_view = None
+
         # Điều hướng dựa trên 6 Roles
         if role == 1:
             from ui.Administrator.admin_dashboard import AdminDashboard
-            page.add(AdminDashboard(page, full_name, "Administrator"))
+            dashboard_view = AdminDashboard(page, full_name, "Administrator")
         elif role == 2:
             from ui.Manager.mgr_dashboard import ManagerDashboard
-            page.add(ManagerDashboard(page, full_name, "Manager"))
+            dashboard_view = ManagerDashboard(page, full_name, "Manager")
         elif role == 3:
             from ui.FrontDesk.fd_dashboard import FrontDeskDashboard
-            page.add(FrontDeskDashboard(page, full_name, "Front Desk Staff"))
+            dashboard_view = FrontDeskDashboard(page, full_name, "Front Desk Staff")
         elif role == 4:
             from ui.Maintenance.ms_dashboard import MaintenanceDashboard
-            page.add(MaintenanceDashboard(page, full_name, "Maintenance Staff"))
+            dashboard_view = MaintenanceDashboard(page, full_name, "Maintenance Staff")
         elif role == 5:
             from ui.Finance.fm_dashboard import FinanceDashboard
-            page.add(FinanceDashboard(page, full_name, "Finance Manager"))
+            dashboard_view = FinanceDashboard(page, full_name, "Finance Manager")
         elif role == 6:
             from ui.Tenant.tenant_dashboard import TenantDashboard
-            page.add(TenantDashboard(page, full_name, "Tenant"))
+            dashboard_view = TenantDashboard(page, full_name, "Tenant", user_data=user_data)
      
+        #Lahiru_Malshan
+        if dashboard_view:
+            # I have attach the user_id directly to the dashboard before showing it
+            dashboard_view.user_id = user_data.get("user_id")
+            page.add(dashboard_view)
+
         page.update()
 
-    # --- EXECUTED LOGIN LOGIC ---
+    #Lahiru_Malshan
     def login_click(e):
         if not username_field.value or not password_field.value:
             error_text.value = "Please fill all the information"
             page.update()
             return
+            
         result = login(username_field.value, password_field.value)
         
         if isinstance(result, dict):
@@ -82,6 +89,7 @@ def main(page: ft.Page):
             error_text.value = "Information is missing"
         else:
             error_text.value = "Invalid username or password"
+            
         page.update()
         if result == "informationError":
             error_text.value = "Please fill all the information"

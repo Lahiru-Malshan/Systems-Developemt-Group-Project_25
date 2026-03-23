@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -5,24 +7,78 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from datetime import datetime
 from base_dashboard import ACCENT_BLUE, ACCENT_BLUE_LIGHT, CARD_BG, TEXT_DARK, TEXT_MUTED, BaseDashboard
 from flet_charts import PieChart, PieChartSection
+from db import get_db_connection
+from backend.Maintance.maintenance_request import create_maintenance_request
 
 import flet as ft
 
-# 1. Mock Data Global
-# Structure: [ID, Category, Description, Priority, Status, Reported, Completed]
-maintenance_data = [
-    [101, "Plumbing", "Kitchen sink leaking", "High", "In Progress", "2026-02-15", "-"],
-    [102, "Electrical", "AC Filter Cleaning", "Low", "Completed", "2026-01-22", "2026-01-23"],
-    [103, "Furniture", "Broken door handle", "Medium", "Pending", "2026-02-10", "-"],
-]
+
+def fetch_maintenance_requests(dash):
+    # Use tenant backend if available to filter by tenant and sort by request_id
+    if hasattr(dash, "backend") and hasattr(dash.backend, "get_maintenance_requests"):
+        raw = dash.backend.get_maintenance_requests()
+        ordered = sorted(raw, key=lambda r: r.get("id", 0), reverse=False)
+        formatted = []
+        for idx, r in enumerate(ordered, start=1):
+            formatted.append([
+                idx,
+                f"Apt {r.get('apartment_id', '-')}",
+                r.get("description", ""),
+                "Medium",
+                r.get("status", "Pending"),
+                str(r.get("reported_at", "")).split(" ")[0] if r.get("reported_at") else "-",
+                str(r.get("resolved_at", "")).split(" ")[0] if r.get("resolved_at") else "-",
+            ])
+        return formatted
+
+    # Fallback: query global maintenance requests (not tenant scoped)
+    conn = None
+    cursor = None
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT request_id, description, status, reported_at, resolved_at
+            FROM maintenance_requests
+            ORDER BY request_id ASC
+        """)
+
+        records = cursor.fetchall()
+        formatted_records = []
+
+        for idx, row in enumerate(records, start=1):
+            formatted_records.append([
+                idx,
+                "General",
+                row["description"],
+                "Medium",
+                row["status"],
+                str(row["reported_at"]).split(" ")[0] if row["reported_at"] else "-",
+                str(row["resolved_at"]).split(" ")[0] if row["resolved_at"] else "-"
+            ])
+
+        return formatted_records
+
+    except Exception as e:
+        print("Error fetching maintenance requests:", e)
+        return []
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
 
 def show_maintenance(dash, *args):
-    if not dash: return
-    global maintenance_data
+    if not dash:
+        return
+
     dash.content_column.controls.clear()
 
-    maintenance_data.sort(key=lambda x: x[5], reverse=True)
-    
+    maintenance_data = fetch_maintenance_requests(dash)
+
     action_bar = ft.Container(
         padding=ft.padding.symmetric(vertical=10),
         content=ft.Row([
@@ -37,7 +93,7 @@ def show_maintenance(dash, *args):
             )
         ], alignment="spaceBetween")
     )
-    
+
     rows = []
     for m in maintenance_data:
         p_color = ft.Colors.RED_700 if m[3] == "High" else ft.Colors.ORANGE_700 if m[3] == "Medium" else ft.Colors.BLUE_GREY_400
@@ -57,7 +113,6 @@ def show_maintenance(dash, *args):
             )
         )
 
-    # 2. Records
     table_container = ft.Container(
         bgcolor=CARD_BG, padding=20, border_radius=12, expand=True,
         content=ft.Column([
@@ -78,14 +133,28 @@ def show_maintenance(dash, *args):
             )
         ], scroll=ft.ScrollMode.AUTO)
     )
-    
-    # 3a. DTA CHART (Mock Data) - Replace with actual chart component later
+
+    status_counts = {"Pending": 0, "In Progress": 0, "Completed": 0}
+    for m in maintenance_data:
+        st = m[4]
+        if st in status_counts:
+            status_counts[st] += 1
+        else:
+            status_counts["Pending"] += 1
+
+    total = sum(status_counts.values()) or 1
+    sections = []
+    if status_counts["In Progress"] > 0:
+        sections.append(PieChartSection(int(status_counts["In Progress"] / total * 100), title=f"{int(status_counts["In Progress"] / total * 100)}%", color=ft.Colors.BLUE_700, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
+    if status_counts["Completed"] > 0:
+        sections.append(PieChartSection(int(status_counts["Completed"] / total * 100), title=f"{int(status_counts["Completed"] / total * 100)}%", color=ft.Colors.GREEN_700, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
+    if status_counts["Pending"] > 0:
+        sections.append(PieChartSection(int(status_counts["Pending"] / total * 100), title=f"{int(status_counts["Pending"] / total * 100)}%", color=ft.Colors.GREY_600, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
+    if not sections:
+        sections = [PieChartSection(100, title="100%", color=ft.Colors.GREY_400, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white"))]
+
     pie_chart = PieChart(
-        sections=[
-            PieChartSection(30, title="30%", color=ft.Colors.BLUE_700, radius=40,title_style=ft.TextStyle(size=12, weight="bold", color="white")),
-            PieChartSection(50, title="50%", color=ft.Colors.GREEN_700, radius=40,title_style=ft.TextStyle(size=12, weight="bold", color="white")),
-            PieChartSection(20, title="20%", color=ft.Colors.GREY_600, radius=40,title_style=ft.TextStyle(size=12, weight="bold", color="white")),
-        ],
+        sections=sections,
         sections_space=2,
         center_space_radius=40,
         expand=True,
@@ -106,7 +175,7 @@ def show_maintenance(dash, *args):
             ], spacing=10)
         ])
     )
-    # 3b. Lists
+
     sent_card = ft.Container(
         bgcolor=CARD_BG, padding=20, border_radius=12, width=320,
         content=ft.Column([
@@ -127,17 +196,17 @@ def show_maintenance(dash, *args):
         ])
     )
 
-    # 4. MAIN LAYOUT
     dash.content_column.controls = [
         action_bar,
         ft.Row([table_container]),
         ft.Row([chart_card, sent_card], spacing=20, vertical_alignment="start")
     ]
     dash.page.update()
-        
+
+
 def open_maintenance_form(dash):
-    """Popup form for adding new request"""
     current_date = datetime.now().strftime("%Y-%m-%d")
+
     ref_category = ft.Dropdown(
         label="Category", value="Plumbing",
         options=[ft.dropdown.Option(x) for x in ["Plumbing", "Electrical", "Furniture", "Others"]],
@@ -149,6 +218,7 @@ def open_maintenance_form(dash):
         options=[ft.dropdown.Option(x) for x in ["Low", "Medium", "High"]],
         border_color=ACCENT_BLUE
     )
+
     ref_desc = ft.TextField(
         label="Issue Description", hint_text="Tell us what needs fixing...", multiline=True, min_lines=3, border_color=ACCENT_BLUE
     )
@@ -157,29 +227,30 @@ def open_maintenance_form(dash):
         if not ref_desc.value:
             dash.show_message("Please provide a description of the issue!")
             return
-        global maintenance_data
 
+        tenant = None
+        if hasattr(dash, 'backend') and hasattr(dash.backend, 'get_tenant_record'):
+            tenant = dash.backend.get_tenant_record()
+        if not tenant or not tenant.get('tenant_id'):
+            dash.show_message("Tenant not found. Cannot submit request.")
+            return
+
+        apartment_id = 1
+        tenant_id = tenant.get('tenant_id')
         try:
-            new_id = max([m[0] for m in maintenance_data]) + 1 if maintenance_data else 1
+            create_maintenance_request(
+                tenant_id=tenant_id,
+                apartment_id=apartment_id,
+                description=ref_desc.value
+            )
 
-            new_record = [
-                new_id,
-                ref_category.value,
-                ref_desc.value,
-                ref_priority.value,
-                "Pending",
-                current_date,
-                "-"
-            ]
-            maintenance_data.insert(0, new_record)
-            
             dash.show_message("Success! Request submitted successfully!")
             dash.close_dialog()
             show_maintenance(dash)
-            
+
         except Exception as ex:
             dash.show_message(f"Submit error: {str(ex)}")
-            
+
     form_content = ft.Column([
         ft.Text("Please fill out the details below", color=TEXT_MUTED),
         ref_category,
@@ -190,7 +261,7 @@ def open_maintenance_form(dash):
             ft.Text(f"Reported Date: {current_date}", size=12, color=TEXT_MUTED, weight="bold"),
         ]),
     ], spacing=20, width=450)
-    
+
     actions = [
         ft.Button(
             ft.TextButton("Cancel", on_click=dash.close_dialog),
@@ -201,4 +272,5 @@ def open_maintenance_form(dash):
             on_click=handle_submit
         ),
     ]
+
     dash.show_custom_modal("New Maintenance Request", form_content, actions)

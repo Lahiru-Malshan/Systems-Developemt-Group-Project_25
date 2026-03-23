@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -8,22 +10,24 @@ import flet as ft
 # --- TAB: MY PROFILE (Personal & Lease Info) ---
 def draw_my_profile_tab(dash, *args):
     dash.detail_area.controls.clear()
+    profile = dash.backend.get_profile() if hasattr(dash, "backend") else {}
     
     # Section 1: Personal Information
-    ref_occupation = ft.TextField(
-        label="Occupation", value="", expand=True,
+    ref_nickname = ft.TextField(
+        label="Nickname", value=profile.get("nickname", profile.get("occupation", "")), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     ref_dob = ft.TextField(
-        label="Date of Birth", value="", expand=True,
+        label="Date of Birth", value=profile.get("dob", ""), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
+    
     ref_phone = ft.TextField(
-        label="Phone", value="", expand=True,
+        label="Phone", value=profile.get("phone", ""), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     ref_email = ft.TextField(
-        label="Email", value="", expand=True,
+        label="Email", value=profile.get("email", ""), expand=True,
         border_color=ACCENT_BLUE, text_style=ft.TextStyle(color=TEXT_DARK)
     )
     
@@ -39,16 +43,18 @@ def draw_my_profile_tab(dash, *args):
 
     def handle_update_profile(e):
         data_to_update = {
-            "occupation": ref_occupation.value,
+            "nickname": ref_nickname.value,
             "dob": ref_dob.value,
             "phone": ref_phone.value,
             "email": ref_email.value
         }
         
         try:
-            # Giả sử gọi hàm DB: db.update_resident_profile(dash.user_id, data_to_update)
+            if hasattr(dash, "backend"):
+                success, msg = dash.backend.update_profile(data_to_update)
+                if not success:
+                    raise Exception(msg)
             print(f"Updating DB with: {data_to_update}")
-            
             dash.show_message("Profile updated successfully!")
             dash.page.update()
             
@@ -57,7 +63,7 @@ def draw_my_profile_tab(dash, *args):
     # LAYOUT
     personal_section = ft.Column([
         ft.Text("Personal Information", size=18, weight="bold", color=TEXT_DARK),
-        ft.Row([ref_occupation, ref_dob], spacing=20),
+        ft.Row([ref_nickname, ref_dob], spacing=20),
         ft.Row([ref_phone, ref_email], spacing=20),
     ], spacing=15)
     lease_section = ft.Column([
@@ -126,11 +132,12 @@ def draw_security_tab(dash):
             return
 
         try:
-            # Giả sử gọi hàm DB: db.update_password(dash.user_id, ref_current_pw.value, ref_new_pw.value)
-            print(f"DB Action: Updating password for user...")
-            
+            if hasattr(dash, "backend"):
+                success, message = dash.backend.update_password(ref_current_pw.value, ref_new_pw.value)
+                if not success:
+                    dash.show_message(f"Update failed: {message}")
+                    return
             dash.show_message("Password updated successfully!")
-            
             ref_current_pw.value = ""
             ref_new_pw.value = ""
             ref_confirm_pw.value = ""
@@ -351,7 +358,7 @@ def draw_support_tab(dash):
             ft.Divider(),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.PHONE_ROUNDED, color=ACCENT_BLUE),
-                title=ft.Text("Phone: +84 123 456 789", weight="bold", color=TEXT_DARK),
+                title=ft.Text("Phone: +44 123 456 789", weight="bold", color=TEXT_DARK),
             ),
             ft.ListTile(
                 leading=ft.Icon(ft.Icons.EMAIL_ROUNDED, color=ACCENT_BLUE),

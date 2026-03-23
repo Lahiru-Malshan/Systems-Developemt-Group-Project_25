@@ -1,19 +1,25 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-# Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
 
 from base_dashboard import *
 from .payments import *
 from .maintenance import *
 from .settings import *
 from .notifications import *
+from backend.Tenant.tenant import TenantBackend
 from flet_charts import PieChart, PieChartSection
 import flet as ft
 
 class TenantDashboard(BaseDashboard):
-    def __init__(self, page: ft.Page, username: str, role_name: str = "Tenant"):
+    def __init__(self, page: ft.Page, username: str, role_name: str = "Tenant", user_data: dict = None):
         super().__init__(page, username, role_name=role_name)
+        user_id = None
+        if user_data:
+            user_id = user_data.get("user_id") or user_data.get("id") or user_data.get("userId")
+        self.backend = TenantBackend(user_id=user_id, username=username)
         
         self.create_nav_btn(
             "Dashboard",ft.Icons.DASHBOARD_ROUNDED,lambda _: self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
@@ -35,15 +41,22 @@ class TenantDashboard(BaseDashboard):
             "Settings",ft.Icons.SETTINGS_ROUNDED,lambda _: self.switch_page("Settings", "Manage your account and preferences", self.show_settings)
         )
         
+        self.switch_page("Dashboard", "Welcome back to your overview", self.show_dashboard)
+        
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self):
         # STAT CARDS
+        stats = self.backend.get_dashboard_stats() if hasattr(self, "backend") else {"next_rent_due": "£1,200", "payment_status": "On Time", "unread_notifications": 3}
+        next_rent_due = stats.get("next_rent_due", "£1,200")
+        payment_status = stats.get("payment_status", "On Time")
+        unread_count = stats.get("unread_notifications", 0)
+
         stat_cards = ft.Row(
             spacing=20,
             controls=[
-                self.create_stat_card("Next Rent Due", "£1,200", ft.Icons.CALENDAR_MONTH_ROUNDED),
-                self.create_stat_card("Payment Status", "On Time", ft.Icons.CHECK_CIRCLE_ROUNDED),
-                self.create_stat_card("Unread Notifs", "3 New", ft.Icons.ERROR_OUTLINE_ROUNDED, highlight=True),
+                self.create_stat_card("Next Rent Due", next_rent_due, ft.Icons.CALENDAR_MONTH_ROUNDED),
+                self.create_stat_card("Payment Status", payment_status, ft.Icons.CHECK_CIRCLE_ROUNDED),
+                self.create_stat_card("Unread Notifs", f"{unread_count} New", ft.Icons.ERROR_OUTLINE_ROUNDED, highlight=True),
             ]
         )
         
@@ -87,13 +100,12 @@ class TenantDashboard(BaseDashboard):
                             ft.ListTile(
                                 leading=ft.Icon(ft.Icons.INFO_OUTLINE, color=ACCENT_BLUE),
                                 title=ft.Text("Hệ thống bảo trì điện", weight=ft.FontWeight.BOLD, color=TEXT_DARK, size=14),
-                                subtitle=ft.Text("Vào chủ nhật tuần này, từ 8:00 đến 12:00.",
-                                color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
+                                subtitle=ft.Text("Vào chủ nhật tuần này, từ 8:00 đến 12:00.", color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
                             ),
                             ft.ListTile(
                                 leading=ft.Icon(ft.Icons.CAMPAIGN_OUTLINED, color=ACCENT_BLUE),
-                                title=ft.Text("Thu gom rác"),
-                                subtitle=ft.Text("Vui lòng để rác đúng nơi quy định trước 7:00 sáng."),
+                                title=ft.Text("Thu gom rác", weight=ft.FontWeight.BOLD, color=TEXT_DARK, size=14),
+                                subtitle=ft.Text("Vui lòng để rác đúng nơi quy định trước 7:00 sáng.", color=ft.Colors.BLACK87,weight=ft.FontWeight.W_500),
                             ),
                         ]
                     )
@@ -128,6 +140,8 @@ class TenantDashboard(BaseDashboard):
             )
             
         # PROFILE HEADER SECTION
+        profile = self.backend.get_profile() if hasattr(self, "backend") else {}
+        lease_unit = profile.get("unit", "Block B - Unit 302")
         header_container = ft.Container(
             bgcolor=CARD_BG,
             padding=30,
@@ -146,7 +160,7 @@ class TenantDashboard(BaseDashboard):
                 ft.Column([
                     ft.Text(self.username, size=24, weight="bold", color=TEXT_DARK),
                     ft.Text(f"Role: {self.role_name}", size=14, weight="bold", color=TEXT_MUTED),
-                    ft.Text("Apartment: Block B - Unit 302", size=14, weight="bold", color=ACCENT_BLUE),
+                    ft.Text(f"Apartment: {lease_unit}", size=14, weight="bold", color=ACCENT_BLUE),
                 ], spacing=5, expand=True),
                 # Control Buttons
                 ft.Column([
@@ -214,12 +228,13 @@ class TenantDashboard(BaseDashboard):
         self.content_column.controls = [header_container, content_card]
         if self.page:
             self.page.update()
-    
-def main(page: ft.Page):
-    dashboard = TenantDashboard(page, "Sara", "Tenant")
 
-    page.add(dashboard)
-    dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_dashboard)
+# #Test case
+# def main(page: ft.Page):
+#     dashboard = TenantDashboard(page, "Sara", "Tenant")
+
+#     page.add(dashboard)
+#     dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_dashboard)
             
-if __name__ == "__main__":
-    ft.run(main)
+# if __name__ == "__main__":
+#     ft.run(main)

@@ -1,11 +1,13 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 src_path = os.path.abspath(os.path.join(current_dir, "../../"))
 if src_path not in sys.path:
     sys.path.append(src_path)
-# Đoạn code trên đang thêm thư mục cha của file hiện tại vào sys.path để có thể import các module từ thư mục đó để chạy test. Điều này giúp tránh lỗi ImportError khi import các module khác trong dự án. Sau này sẽ sửa lại, dùng .. để import trực tiếp thay vì sửa sys.path như này.
 
 from logic.notifications import *
 from base_dashboard import *
@@ -45,6 +47,8 @@ class FrontDeskDashboard(BaseDashboard):
             ft.Icons.SETTINGS_ROUNDED,
             lambda _: self.switch_page("Settings", "Account and system preferences", show_settings)
         )
+
+        self.switch_page("Overview", "Building Status Summary", self.show_overview)
     
     def show_overview(self, *args):
 
@@ -94,12 +98,13 @@ class FrontDeskDashboard(BaseDashboard):
 
         self.content_column.controls = [stats_row, main_layout]
         self.page.update()
-        
-def main(page: ft.Page):
-    dashboard = FrontDeskDashboard(page, "Sara", "Front Desk")
 
-    page.add(dashboard)
-    dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_overview)
+# #Test case
+# def main(page: ft.Page):
+#     dashboard = FrontDeskDashboard(page, "Sara", "Front Desk")
+
+#     page.add(dashboard)
+#     dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_overview)
             
-if __name__ == "__main__":
-    ft.run(main)
+# if __name__ == "__main__":
+#     ft.run(main)

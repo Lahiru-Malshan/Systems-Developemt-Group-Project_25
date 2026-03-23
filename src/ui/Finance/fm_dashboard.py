@@ -1,10 +1,8 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_path = os.path.abspath(os.path.join(current_dir, "../../"))
-if src_path not in sys.path:
-    sys.path.append(src_path)
 
 import flet as ft
 import flet.canvas as cv
@@ -45,6 +43,8 @@ class FinanceDashboard(BaseDashboard):
             ft.Icons.SETTINGS_ROUNDED,
             lambda _: self.switch_page("Settings", "Account and system preferences", show_settings)
         )
+
+        self.switch_page("Financial Overview", "Summary of financial metrics and trends", self.show_overview)
 
     def show_overview(self, *args):
 
@@ -219,10 +219,11 @@ class FinanceDashboard(BaseDashboard):
             [ft.Button("Close", on_click=lambda _: self.close_dialog())]
         )
     
-def main(page: ft.Page):
-    dashboard = FinanceDashboard(page, "Mr. Sterling", "Finance Manager")
-    page.add(dashboard)
-    dashboard.switch_page("Financial Overview", "System financial health at a glance", dashboard.show_overview)
+# #Test case
+# def main(page: ft.Page):
+#     dashboard = FinanceDashboard(page, "Mr. Sterling", "Finance Manager")
+#     page.add(dashboard)
+#     dashboard.switch_page("Financial Overview", "System financial health at a glance", dashboard.show_overview)
 
-if __name__ == "__main__":
-    ft.run(main)
+# if __name__ == "__main__":
+#     ft.run(main)

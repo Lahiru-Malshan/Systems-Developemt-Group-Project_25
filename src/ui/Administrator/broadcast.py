@@ -8,20 +8,28 @@ from datetime import datetime
 from base_dashboard import *
 from logic.search import *
 from logic.notifications import *
-
-# --- MOCK DATA ---
-broadcast_history = [
-    {"id": "BC-001", "title": "Fire Alarm Test", "target": "All Residents", "date": "2026-02-20", "status": "Sent", "type": "Urgent"},
-    {"id": "BC-002", "title": "Elevator Maintenance", "target": "Block A", "date": "2026-02-18", "status": "Sent", "type": "Info"},
-]
+import db # IMPORTANT: Connects to MySQL
 
 def show_broadcast(dash, *args):
     dash.content_column.controls.clear()
 
     search_term = getattr(dash, "bc_search_input", ft.TextField()).value or ""
-    filtered_data = SearchEngine.apply_logic(broadcast_history, search_term=search_term)
+    
+    # 1. FETCH FROM DATABASE
+    raw_db_data = db.get_all_broadcasts()
+    
+    # Map DB data to the format your UI and SearchEngine expects
+    broadcast_history = []
+    for b in raw_db_data:
+        broadcast_history.append({
+            "id": f"BC-{b['broadcast_id']}",
+            "title": b["title"],
+            "target": b["target_audience"],
+            "date": str(b["send_date"]),
+            "type": b["urgency"]
+        })
 
-    current_rows = []
+    filtered_data = SearchEngine.apply_logic(broadcast_history, search_term=search_term)
 
     current_rows = []
     for bc in filtered_data:
@@ -116,24 +124,31 @@ def open_broadcast_modal(dash):
         
         selected_type = type_field.value
 
-        success = send_notification(
-            dash,
-            user_id=target_field.value,
-            title=title_field.value,
-            message=content_field.value
+        # 1. SEND REAL NOTIFICATION VIA YOUR LOGIC
+        try:
+            send_notification(
+                dash,
+                user_id=target_field.value,
+                title=title_field.value,
+                message=content_field.value
+            )
+        except Exception as err:
+            print(f"Notification Error: {err}")
+
+        # 2. SAVE TO MYSQL DATABASE
+        success = db.add_broadcast(
+            title=title_field.value, 
+            target_audience=target_field.value, 
+            content=content_field.value, 
+            urgency=selected_type
         )
 
         if success:
-            broadcast_history.insert(0, {
-                "id": f"BC-{len(broadcast_history)+1}",
-                "title": title_field.value,
-                "target": target_field.value,
-                "date": datetime.now().strftime("%Y-%m-%d"),
-                "type": selected_type
-            })
             dash.close_dialog()
             dash.show_message("Announcement broadcasted successfully!")
-            show_broadcast(dash)
+            show_broadcast(dash) # Refresh UI to show the new broadcast
+        else:
+            dash.show_message("Database Error: Could not save broadcast history.")
 
     dash.show_custom_modal(
         "Compose Broadcast",

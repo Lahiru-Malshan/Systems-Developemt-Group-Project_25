@@ -1,3 +1,4 @@
+# Elena Ho - 25044389
 # logic/search.py
 
 class SearchEngine:

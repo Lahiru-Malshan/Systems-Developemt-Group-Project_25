@@ -1,4 +1,4 @@
-INSERT INTO users (
+/Users/ductrungnguyen/Documents/UWE/Database/roles.sqlINSERT INTO users (
     role_id,
     username,
     password_hash,

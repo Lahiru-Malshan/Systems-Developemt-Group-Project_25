@@ -1,146 +1,235 @@
 import sys
 import os
-from turtle import color
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import flet as ft
 from datetime import datetime
 from base_dashboard import *
-from logic.search import *
+import db # IMPORTANT: Connects to your MySQL database
 
-# --- MOCK DATA ---
-ops_tasks = [
-    {"id": "OP-101", "task": "Fire Extinguisher Check", "assigned": "Security Team", "priority": "High", "status": "Pending"},
-    {"id": "OP-102", "task": "Garden Watering", "assigned": "Maintenance", "priority": "Low", "status": "Completed"},
-    {"id": "OP-103", "task": "CCTV System Audit", "assigned": "IT Support", "priority": "Medium", "status": "In Progress"},
-]
-
-def show_operations(dash, *args):
+def show_operations(dash, tab_index=0, *args):
     dash.content_column.controls.clear()
 
-    search_term = getattr(dash, "ops_search_input", ft.TextField()).value or ""
-    filtered_data = SearchEngine.apply_logic(ops_tasks, search_term=search_term)
-
-    current_rows = []
-    for op in filtered_data:
-        status_color = ft.Colors.GREEN if op["status"] == "Completed" else \
-                    ft.Colors.ORANGE if op["status"] == "In Progress" else ft.Colors.RED_ACCENT
+    # --- 1. VIEW: MAINTENANCE REQUESTS ---
+    def get_maintenance_view():
+        search_val = getattr(dash, "maint_search", ft.TextField()).value or ""
         
-        current_rows.append(
-            ft.DataRow(cells=[
-                ft.DataCell(ft.Text(op["id"], color=TEXT_DARK, weight="bold")),
-                ft.DataCell(ft.Text(op["task"], color=TEXT_DARK)),
-                ft.DataCell(ft.Text(op["assigned"], color=TEXT_DARK)),
-                ft.DataCell(ft.Text(op["priority"], color=TEXT_DARK)),
-                ft.DataCell(
-                    ft.Container(
-                        content=ft.Text(op["status"], color="white", size=12, weight="bold"),
-                        bgcolor=status_color, padding=5, border_radius=5
-                    )
-                ),
-                ft.DataCell(
-                    ft.Row([
-                        ft.IconButton(ft.Icons.CHECK_CIRCLE_OUTLINE, icon_color="green", icon_size=18),
-                        ft.IconButton(ft.Icons.DELETE_OUTLINE, icon_color="red", icon_size=18),
+        # Fetch from MySQL
+        maintenance_data = db.get_maintenance_requests()
+        
+        rows = []
+        for req in maintenance_data:
+            tenant_name = f"{req['first_name']} {req['last_name']}"
+            unit = str(req["apartment_number"])
+            
+            if search_val.lower() in tenant_name.lower() or search_val.lower() in unit.lower():
+                status_color = ft.Colors.RED_400 if req["status"] == "Pending" else ft.Colors.ORANGE_500 if req["status"] == "In Progress" else ft.Colors.GREEN_600
+                
+                # Truncate long descriptions for the table view
+                desc = req["description"]
+                short_desc = desc[:35] + "..." if len(desc) > 35 else desc
+
+                rows.append(
+                    ft.DataRow(cells=[
+                        ft.DataCell(ft.Text(f"MR-{req['request_id']}", weight="bold", color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(unit, color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(tenant_name, color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(short_desc, color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(str(req["reported_date"]), color=TEXT_DARK)),
+                        ft.DataCell(
+                            ft.Container(
+                                content=ft.Text(req["status"], size=11, color="white", weight="bold"),
+                                bgcolor=status_color, padding=5, border_radius=5
+                            )
+                        ),
+                        ft.DataCell(
+                            ft.IconButton(
+                                ft.Icons.EDIT_DOCUMENT, icon_color=TEXT_DARK, icon_size=18, tooltip="Update Status",
+                                on_click=lambda e, r=req: open_update_maintenance(dash, r)
+                            )
+                        ),
                     ])
-                ),
-            ])
+                )
+
+        dash.maint_search = ft.TextField(
+            label="Search Requests (Unit or Tenant)...", prefix_icon=ft.Icons.SEARCH, value=search_val,
+            expand=True, color=TEXT_DARK, border_color=ACCENT_BLUE,
+            on_submit=lambda _: show_operations(dash, tab_index=0)
         )
 
-    dash.ops_search_input = ft.TextField(
-        label="Search operations...", prefix_icon=ft.Icons.SEARCH, value=search_term,
-        expand=True, color=TEXT_DARK, border_color=ACCENT_BLUE,
-        on_submit=lambda _: show_operations(dash)
-    )
-
-    header = ft.Row([
-        ft.Column([
-            ft.Text("Building Operations", size=24, weight="bold", color=TEXT_DARK),
-            ft.Text("Daily tasks and personnel assignment", color=TEXT_DARK, size=14),
-        ]),
-        ft.Button(
-            "Add Task", icon=ft.Icons.ADD_TASK,
-            bgcolor=ACCENT_BLUE, color="white",
-            on_click=lambda _: open_ops_modal(dash)
-        )
-    ], alignment="spaceBetween")
-
-    main_container = ft.Container(
-        content=ft.Column([
-            header,
-            ft.Divider(height=20, color="transparent"),
+        return ft.Column([
             ft.Row([
-                dash.ops_search_input,
-                ft.Button("Apply", bgcolor=ACCENT_BLUE, color="white", on_click=lambda _: show_operations(dash)),
-                ft.IconButton(ft.Icons.REFRESH, icon_color=ACCENT_BLUE, on_click=lambda _: (setattr(dash.ops_search_input, "value", ""), show_operations(dash)))
+                ft.Text("Maintenance & Repairs", size=18, weight="bold", color=TEXT_DARK),
+            ], alignment="spaceBetween"),
+            ft.Row([
+                dash.maint_search,
+                ft.Button("Apply", bgcolor=ACCENT_BLUE, color="white", on_click=lambda _: show_operations(dash, tab_index=0)),
+                ft.IconButton(ft.Icons.REFRESH, icon_color=ACCENT_BLUE, on_click=lambda _: (setattr(dash.maint_search, "value", ""), show_operations(dash, tab_index=0)))
+            ], spacing=10),
+            ft.DataTable(
+                columns=[
+                    ft.DataColumn(ft.Text("Ticket ID", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Unit", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Tenant", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Issue", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Date", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Status", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Manage", weight="bold", color=TEXT_DARK)),
+                ],
+                rows=rows, expand=True
+            )
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+
+    # --- 2. VIEW: TENANT COMPLAINTS ---
+    def get_complaints_view():
+        search_val = getattr(dash, "comp_search", ft.TextField()).value or ""
+        
+        # Fetch from MySQL
+        complaints_data = db.get_all_complaints()
+        
+        rows = []
+        for comp in complaints_data:
+            tenant_name = f"{comp['first_name']} {comp['last_name']}"
+            
+            if search_val.lower() in tenant_name.lower():
+                status_color = ft.Colors.RED_400 if comp["status"] == "Open" else ft.Colors.GREEN_600
+                
+                desc = comp["description"]
+                short_desc = desc[:45] + "..." if len(desc) > 45 else desc
+
+                rows.append(
+                    ft.DataRow(cells=[
+                        ft.DataCell(ft.Text(f"FB-{comp['complaint_id']}", weight="bold", color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(tenant_name, color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(short_desc, color=TEXT_DARK)),
+                        ft.DataCell(ft.Text(str(comp["reported_date"]), color=TEXT_DARK)),
+                        ft.DataCell(
+                            ft.Container(
+                                content=ft.Text(comp["status"], size=11, color="white", weight="bold"),
+                                bgcolor=status_color, padding=5, border_radius=5
+                            )
+                        ),
+                        ft.DataCell(
+                            ft.IconButton(
+                                ft.Icons.CHECK_CIRCLE_OUTLINE if comp["status"] == "Open" else ft.Icons.REPLAY, 
+                                icon_color=TEXT_DARK, icon_size=18, tooltip="Toggle Status",
+                                on_click=lambda e, c=comp: open_update_complaint(dash, c)
+                            )
+                        ),
+                    ])
+                )
+
+        dash.comp_search = ft.TextField(
+            label="Search Complaints (Tenant Name)...", prefix_icon=ft.Icons.SEARCH, value=search_val,
+            expand=True, color=TEXT_DARK, border_color=ACCENT_BLUE,
+            on_submit=lambda _: show_operations(dash, tab_index=1)
+        )
+
+        return ft.Column([
+            ft.Row([
+                ft.Text("Tenant Feedback & Complaints", size=18, weight="bold", color=TEXT_DARK),
+            ], alignment="spaceBetween"),
+            ft.Row([
+                dash.comp_search,
+                ft.Button("Apply", bgcolor=ACCENT_BLUE, color="white", on_click=lambda _: show_operations(dash, tab_index=1)),
+                ft.IconButton(ft.Icons.REFRESH, icon_color=ACCENT_BLUE, on_click=lambda _: (setattr(dash.comp_search, "value", ""), show_operations(dash, tab_index=1)))
             ], spacing=10),
             ft.DataTable(
                 columns=[
                     ft.DataColumn(ft.Text("ID", weight="bold", color=TEXT_DARK)),
-                    ft.DataColumn(ft.Text("Task Name", weight="bold", color=TEXT_DARK)),
-                    ft.DataColumn(ft.Text("Assigned To", weight="bold", color=TEXT_DARK)),
-                    ft.DataColumn(ft.Text("Priority", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Tenant", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Details", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Date", weight="bold", color=TEXT_DARK)),
                     ft.DataColumn(ft.Text("Status", weight="bold", color=TEXT_DARK)),
-                    ft.DataColumn(ft.Text("Manage", weight="bold", color=TEXT_DARK)),
+                    ft.DataColumn(ft.Text("Action", weight="bold", color=TEXT_DARK)),
                 ],
-                rows=current_rows, expand=True
+                rows=rows, expand=True
             )
-        ], scroll=ft.ScrollMode.AUTO),
-        padding=30, bgcolor=CARD_BG, border_radius=15, expand=True
+        ], spacing=20, scroll=ft.ScrollMode.AUTO)
+
+    # --- 3. MAIN LAYOUT ---
+    tabs = ft.Tabs(
+        selected_index=tab_index,
+        length=2,
+        animation_duration=300,
+        expand=True,
+        content=ft.Column(
+            expand=True,
+            controls=[
+                ft.TabBar(
+                    tabs=[
+                        ft.Tab(label="Maintenance", icon=ft.Icons.HOME_REPAIR_SERVICE),
+                        ft.Tab(label="Complaints", icon=ft.Icons.REPORT_PROBLEM),
+                    ],
+                    label_color=ACCENT_BLUE,
+                    unselected_label_color=TEXT_DARK,
+                    indicator_color=ACCENT_BLUE,
+                    expand=True,
+                ),
+                ft.TabBarView(
+                    expand=True,
+                    controls=[
+                        ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[get_maintenance_view()]),
+                        ft.Column(expand=True, scroll=ft.ScrollMode.AUTO, controls=[get_complaints_view()]),
+                    ]
+                )
+            ]
+        )
     )
 
-    dash.content_column.controls.append(main_container)
+    dash.content_column.controls.append(tabs)
     dash.page.update()
 
-def open_ops_modal(dash):
-    task_field = ft.TextField(label="Task Name", border_color=ACCENT_BLUE, color=TEXT_WHITE)
-    assigned_field = ft.Dropdown(
-        label="Assign To",
+
+# --- ACTION: UPDATE MAINTENANCE STATUS ---
+def open_update_maintenance(dash, req):
+    status_dropdown = ft.Dropdown(
+        label="Current Status",
         options=[
-            ft.dropdown.Option("All"),
-            ft.dropdown.Option("Maintenance Team"),
-            ft.dropdown.Option("Security Team"),
-            ft.dropdown.Option("Cleaning Crew")
+            ft.dropdown.Option("Pending"),
+            ft.dropdown.Option("In Progress"),
+            ft.dropdown.Option("Resolved"),
         ],
-        value="All", color=TEXT_WHITE, border_color=ACCENT_BLUE
-    )
-    priority_field = ft.Dropdown(
-        label="Priority",
-        options=[
-            ft.dropdown.Option("Low"),
-            ft.dropdown.Option("Medium"),
-            ft.dropdown.Option("High")
-        ],
-        value="Medium", color=TEXT_WHITE, border_color=ACCENT_BLUE
+        value=req["status"],
+        border_color=ACCENT_BLUE
     )
 
-    def submit_task(e):
-        if not task_field.value:
-            dash.show_message("Error: Task name is required!")
-            return
-
-        ops_tasks.insert(0, {
-            "id": f"OP-{len(ops_tasks) + 1}",
-            "task": task_field.value,
-            "assigned": assigned_field.value,
-            "priority": priority_field.value,
-            "status": "Pending"
-        })
-
+    def save_maintenance(e):
+        db.update_maintenance_status(req["request_id"], status_dropdown.value)
         dash.close_dialog()
-        dash.show_message("New operational task added!")
-        show_operations(dash)
+        dash.show_message("Maintenance ticket updated!")
+        show_operations(dash, tab_index=0)
 
-    modal_content = ft.Column([
-        ft.Text("Create a new operational duty.", size=14),
-        task_field,
-        assigned_field,
-        priority_field
-    ], tight=True, spacing=15, width=450)
+    content = ft.Column([
+        ft.Text(f"Ticket: MR-{req['request_id']} (Unit {req['apartment_number']})", weight="bold"),
+        ft.Text(f"Issue: {req['description']}", italic=True, size=13),
+        ft.Divider(),
+        status_dropdown
+    ], tight=True, spacing=15, width=400)
 
     actions = [
         ft.TextButton("Cancel", on_click=lambda _: dash.close_dialog()),
-        ft.Button("CREATE TASK", bgcolor=ACCENT_BLUE, color="white", on_click=submit_task)
+        ft.ElevatedButton("SAVE", bgcolor=ACCENT_BLUE, color="white", on_click=save_maintenance)
     ]
+    dash.show_custom_modal("Update Maintenance Ticket", content, actions)
 
-    dash.show_custom_modal("New Operation Task", modal_content, actions)
+
+# --- ACTION: UPDATE COMPLAINT STATUS ---
+def open_update_complaint(dash, comp):
+    new_status = "Closed" if comp["status"] == "Open" else "Open"
+    
+    def save_complaint(e):
+        db.update_complaint_status(comp["complaint_id"], new_status)
+        dash.close_dialog()
+        dash.show_message(f"Complaint marked as {new_status}!")
+        show_operations(dash, tab_index=1)
+
+    content = ft.Column([
+        ft.Text(f"Are you sure you want to mark Ticket FB-{comp['complaint_id']} as {new_status}?", size=14)
+    ], tight=True)
+
+    actions = [
+        ft.TextButton("Cancel", on_click=lambda _: dash.close_dialog()),
+        ft.ElevatedButton("CONFIRM", bgcolor=ACCENT_BLUE, color="white", on_click=save_complaint)
+    ]
+    dash.show_custom_modal("Update Complaint", content, actions)

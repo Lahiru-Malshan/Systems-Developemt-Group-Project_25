@@ -1,10 +1,8 @@
+# Elena Ho - 25044389
+
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-current_dir = os.path.dirname(os.path.abspath(__file__))
-src_path = os.path.abspath(os.path.join(current_dir, "../../"))
-if src_path not in sys.path:
-    sys.path.append(src_path)
 
 import flet as ft
 import flet.canvas as cv
@@ -35,6 +33,8 @@ class ManagerDashboard(BaseDashboard):
         self.create_nav_btn(
             "Settings",ft.Icons.SETTINGS_ROUNDED,lambda _: self.switch_page("Settings", "Manage your account and preferences", show_settings)
         )
+
+        self.switch_page("Dashboard", "Welcome back to your overview", self.show_overview)
     
     def show_overview(self, *args):
         self.content_column.controls.clear()
@@ -209,12 +209,13 @@ def render_manager_data(self):
     ]
     
     self.page.update()
-    
-def main(page: ft.Page):
-    dashboard = ManagerDashboard(page, "Sara", "Manager")
 
-    page.add(dashboard)
-    dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_overview)
+# #Test case to run the dashboard independently
+# def main(page: ft.Page):
+#     dashboard = ManagerDashboard(page, "Sara", "Manager")
+
+#     page.add(dashboard)
+#     dashboard.switch_page("Dashboard", "Welcome back to your overview", dashboard.show_overview)
             
-if __name__ == "__main__":
-    ft.run(main)
+# if __name__ == "__main__":
+#     ft.run(main)

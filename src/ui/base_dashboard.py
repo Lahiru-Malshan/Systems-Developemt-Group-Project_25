@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 from time import sleep
 import flet as ft
 from matplotlib.pyplot import title
@@ -19,9 +21,16 @@ TEXT_WHITE = "#FFFFFF"
 class BaseDashboard(ft.Container):
     def __init__(self, page: ft.Page, username: str, role_name: str):
         super().__init__()
-        page.window_width = 1400
-        page.window_height = 900
-        page.window_resizable = True
+        # keep a reference to the hosting Page so methods can call page.update()
+        self._page = page
+        try:
+            page.window.width = 1400
+            page.window.height = 900
+            page.window.resizable = True
+        except Exception:
+            page.window_width = 1400
+            page.window_height = 900
+            page.window_resizable = True
         
         page.padding = 0
         self.username = username
@@ -162,36 +171,40 @@ class BaseDashboard(ft.Container):
             page_content_func(self)
         except TypeError:
             page_content_func()
-        self.page.update()
+        self._page.update()
             
     # LOGOUT ACTION (Updated)
     def logout(self, e):
         # 1. Show confirmation toast
         self.show_message("Logging out...")
         
-        if self.page:
+        if self._page:
             # 2. Clear current dashboard interface
-            self.page.controls.clear()
+            self._page.controls.clear()
             
-            self.page.window_width = 450
-            self.page.window_height = 650
-            self.page.window_resizable = False
             try:
-                # Thử cách mới của Flet 0.21+
-                self.page.window.center()
-            except:
-                # Cách cũ hơn hoặc dự phòng
-                self.page.window_center = True
+                self._page.window.width = 450
+                self._page.window.height = 650
+                self._page.window.resizable = False
+                self._page.window.center()
+            except Exception:
+                self._page.window_width = 450
+                self._page.window_height = 650
+                self._page.window_resizable = False
+                try:
+                    self._page.window.center()
+                except Exception:
+                    self._page.window_center = True
             
             import login_dashboard
-            login_dashboard.main(self.page)
+            login_dashboard.main(self._page)
             
-            self.page.update()
+            self._page.update()
 
     async def close_app_task(self):
         from asyncio import sleep as async_sleep
         await async_sleep(0.5)
-        await self.page.window.close()
+        await self._page.window.close()
     
     # COMPONENT: Stat card
     def create_stat_card(self, title, value, icon, highlight=False):
@@ -225,7 +238,7 @@ class BaseDashboard(ft.Container):
     
     # SHOW POPUP DIALOG
     def show_popup(self, title: str, content=None, width=600, height=600, actions=None):
-        self.page.dialog = None
+        self._page.dialog = None
         
         display_actions = actions
         if display_actions is None:
@@ -246,12 +259,12 @@ class BaseDashboard(ft.Container):
             ),
             actions=display_actions
         )
-        self.page.dialog = dialog
+        self._page.dialog = dialog
         dialog.open = True
-        self.page.update()
+        self._page.update()
 
     def show_custom_modal(self, title, content, actions=None):
-        self.page.overlay.clear()
+        self._page.overlay.clear()
         self.active_dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(title, weight="bold", color=ft.Colors.BLUE_ACCENT_200),
@@ -263,22 +276,22 @@ class BaseDashboard(ft.Container):
                 )
             ],
         )
-        self.page.overlay.append(self.active_dialog)
+        self._page.overlay.append(self.active_dialog)
         self.active_dialog.open = True
-        self.page.update()
+        self._page.update()
 
     def close_dialog(self, e=None):
         if hasattr(self, "active_dialog"):
             self.active_dialog.open = False
-            self.page.update()
+            self._page.update()
 
     # SHOW MESSAGE (info / warning / error)
     def show_message(self, message: str):
-        if self.page:
+        if self._page:
             snack = ft.SnackBar(ft.Text(message), bgcolor=ACCENT_BLUE)
-            self.page.overlay.append(snack)
+            self._page.overlay.append(snack)
             snack.open = True
-            self.page.update()
+            self._page.update()
 
 # # ====================================================
 # # SAMPLE MAIN (run this file alone to test)
