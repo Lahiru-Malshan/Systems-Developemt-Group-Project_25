@@ -8,6 +8,15 @@ from base_dashboard import *
 from logic.search import *
 import db # Connects to your database
 
+
+STAFF_ROLE_OPTIONS = [
+    "Administrator",
+    "Manager",
+    "Front Desk",
+    "Maintenance",
+    "Finance Manager",
+]
+
 def show_user(dash, tab_index=0, *args):
     dash.content_column.controls.clear()
     
@@ -206,12 +215,7 @@ def edit_staff(dash, staff):
     role_input = ft.Dropdown(
         label="Role",
         border_color=ACCENT_BLUE,
-        options=[
-            ft.dropdown.Option("Front Desk"),
-            ft.dropdown.Option("Maintenance"),
-            ft.dropdown.Option("Security"),
-            ft.dropdown.Option("Manager"),
-        ],
+        options=[ft.dropdown.Option(role_name) for role_name in STAFF_ROLE_OPTIONS],
         value=staff["role"]
     )
     status_input = ft.Dropdown(
@@ -259,12 +263,7 @@ def register_staff(dash, *args):
     role_input = ft.Dropdown(
         label="Role",
         border_color=ACCENT_BLUE,
-        options=[
-            ft.dropdown.Option("Front Desk"),
-            ft.dropdown.Option("Maintenance"),
-            ft.dropdown.Option("Security"),
-            ft.dropdown.Option("Manager"),
-        ],
+        options=[ft.dropdown.Option(role_name) for role_name in STAFF_ROLE_OPTIONS],
         value="Front Desk"
     )
 
@@ -273,14 +272,16 @@ def register_staff(dash, *args):
             dash.show_message("Please fill in all required fields!")
             return
 
-        success = db.add_staff(ni_input.value.upper(), name_input.value, role_input.value)
+        result = db.add_staff(ni_input.value.upper(), name_input.value, role_input.value)
         
-        if success:
+        if result["success"]:
             dash.close_dialog()
-            dash.show_message(f"Staff {name_input.value} registered!")
+            dash.show_message(
+                f"Staff {name_input.value} registered. Username: {result['username']} | Temporary password: {result['password']}"
+            )
             show_user(dash, tab_index=0) 
         else:
-            dash.show_message("Error: Could not save. That NI Number might already exist.")
+            dash.show_message(f"Error: Could not save staff record. {result.get('error', '')}")
 
     content = ft.Column([
         ft.Text("Register a new staff member for this branch."),

@@ -3,9 +3,22 @@ from pathlib import Path
 
 import mysql.connector
 from dotenv import load_dotenv
+from pwhash import hash_password
 
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+
+ROLE_LABEL_TO_DB = {
+    "Administrator": "Administrator",
+    "Manager": "Manager",
+    "Front Desk": "FrontDeskStaff",
+    "Maintenance": "MaintenanceStaff",
+    "Finance Manager": "FinancialManager",
+}
+
+ROLE_DB_TO_LABEL = {value: key for key, value in ROLE_LABEL_TO_DB.items()}
+DEFAULT_STAFF_LOCATION_ID = int(os.getenv("DEFAULT_STAFF_LOCATION_ID", "1"))
 
 
 def _get_required_env(name: str) -> str:
@@ -13,6 +26,91 @@ def _get_required_env(name: str) -> str:
     if value:
         return value
     raise RuntimeError(f"Missing required environment variable: {name}")
+
+
+def _normalize_staff_role(role: str) -> str:
+    normalized_role = ROLE_LABEL_TO_DB.get(role, role)
+    if normalized_role not in ROLE_DB_TO_LABEL:
+        raise ValueError(f"Unsupported staff role: {role}")
+    return normalized_role
+
+
+def _format_staff_role(role_name: str) -> str:
+    return ROLE_DB_TO_LABEL.get(role_name, role_name)
+
+
+def _split_full_name(full_name: str) -> tuple[str, str]:
+    parts = full_name.strip().split()
+    if not parts:
+        raise ValueError("Staff name is required")
+    if len(parts) == 1:
+        return parts[0], "Staff"
+    return parts[0], " ".join(parts[1:])
+
+
+def _build_staff_username(ni: str) -> str:
+    return "".join(character for character in ni.lower().strip() if character.isalnum())
+
+
+def _generate_staff_email(username: str) -> str:
+    return f"{username}@staff.local"
+
+
+def _generate_staff_password(ni: str) -> str:
+    return f"Paragon@{ni[-4:]}"
+
+
+def _remove_staff_assignment(cursor, user_id: int):
+    cursor.execute("DELETE FROM administrators WHERE user_id = %s", (user_id,))
+    cursor.execute("DELETE FROM managers WHERE user_id = %s", (user_id,))
+    cursor.execute("DELETE FROM frontdesk_staff WHERE user_id = %s", (user_id,))
+    cursor.execute("DELETE FROM maintenance_staff WHERE user_id = %s", (user_id,))
+    cursor.execute("DELETE FROM financial_managers WHERE user_id = %s", (user_id,))
+
+
+def _assign_staff_role(cursor, user_id: int, role_id: int):
+    _remove_staff_assignment(cursor, user_id)
+
+    if role_id == 1:
+        cursor.execute(
+            "INSERT INTO administrators (user_id, location_id) VALUES (%s, %s)",
+            (user_id, DEFAULT_STAFF_LOCATION_ID),
+        )
+    elif role_id == 2:
+        cursor.execute(
+            "INSERT INTO managers (user_id, location_id) VALUES (%s, %s)",
+            (user_id, DEFAULT_STAFF_LOCATION_ID),
+        )
+    elif role_id == 3:
+        cursor.execute(
+            "INSERT INTO frontdesk_staff (user_id, location_id, hire_date) VALUES (%s, %s, CURRENT_DATE)",
+            (user_id, DEFAULT_STAFF_LOCATION_ID),
+        )
+    elif role_id == 4:
+        cursor.execute(
+            "INSERT INTO maintenance_staff (user_id, location_id, hire_date) VALUES (%s, %s, CURRENT_DATE)",
+            (user_id, DEFAULT_STAFF_LOCATION_ID),
+        )
+    elif role_id == 5:
+        cursor.execute(
+            "INSERT INTO financial_managers (user_id, location_id, hire_date) VALUES (%s, %s, CURRENT_DATE)",
+            (user_id, DEFAULT_STAFF_LOCATION_ID),
+        )
+    else:
+        raise ValueError(f"Unsupported role id for staff assignment: {role_id}")
+
+
+def _get_staff_user_by_ni(cursor, ni: str):
+    cursor.execute(
+        """
+        SELECT user_id, role_id
+        FROM users
+        WHERE role_id IN (1, 2, 3, 4, 5)
+          AND UPPER(COALESCE(NULLIF(nickname, ''), username)) = %s
+        """,
+        (ni.upper(),),
+    )
+    return cursor.fetchone()
 
 def get_db_connection():
     return mysql.connector.connect(
@@ -29,40 +127,110 @@ def get_db_connection():
 def get_all_staff():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT ni, name, role, status FROM staff")
+    cursor.execute(
+        """
+        SELECT
+            UPPER(COALESCE(NULLIF(u.nickname, ''), u.username)) AS ni,
+            CONCAT(u.first_name, ' ', u.last_name) AS name,
+            r.role_name AS role,
+            u.account_status AS status
+        FROM users u
+        JOIN roles r ON u.role_id = r.role_id
+        WHERE u.role_id IN (1, 2, 3, 4, 5)
+        ORDER BY u.first_name, u.last_name
+        """
+    )
     staff = cursor.fetchall()
     conn.close()
+    for item in staff:
+        item["role"] = _format_staff_role(item["role"])
     return staff
 
 def add_staff(ni, name, role, status="Active"):
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO staff (ni, name, role, status) VALUES (%s, %s, %s, %s)", 
-                       (ni, name, role, status))
+        normalized_role = _normalize_staff_role(role)
+        first_name, last_name = _split_full_name(name)
+        username = _build_staff_username(ni)
+        if not username:
+            raise ValueError("NI number must contain letters or digits")
+
+        email = _generate_staff_email(username)
+        temp_password = _generate_staff_password(ni.upper())
+
+        cursor.execute("SELECT role_id FROM roles WHERE role_name = %s", (normalized_role,))
+        role_row = cursor.fetchone()
+        if not role_row:
+            raise ValueError(f"Role not found: {normalized_role}")
+
+        cursor.execute(
+            """
+            INSERT INTO users (
+                role_id, username, password_hash, first_name, last_name, email, account_status, nickname
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (role_row[0], username, hash_password(temp_password), first_name, last_name, email, status, ni.upper()),
+        )
+        user_id = cursor.lastrowid
+        _assign_staff_role(cursor, user_id, role_row[0])
         conn.commit()
-        success = True
+        return {"success": True, "username": username, "password": temp_password}
     except Exception as e:
+        conn.rollback()
         print(f"DATABASE ERROR (Add Staff): {e}")
-        success = False 
+        return {"success": False, "error": str(e)}
     finally:
         conn.close()
-    return success
 
 def delete_staff(ni):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM staff WHERE ni = %s", (ni,))
-    conn.commit()
-    conn.close()
+    try:
+        staff_user = _get_staff_user_by_ni(cursor, ni)
+        if not staff_user:
+            return False
+
+        user_id = staff_user[0]
+        _remove_staff_assignment(cursor, user_id)
+        cursor.execute("DELETE FROM users WHERE user_id = %s", (user_id,))
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 def update_staff(ni, new_name, new_role, new_status):
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE staff SET name = %s, role = %s, status = %s WHERE ni = %s", 
-                   (new_name, new_role, new_status, ni))
-    conn.commit()
-    conn.close()
+    try:
+        staff_user = _get_staff_user_by_ni(cursor, ni)
+        if not staff_user:
+            return False
+
+        normalized_role = _normalize_staff_role(new_role)
+        first_name, last_name = _split_full_name(new_name)
+
+        cursor.execute("SELECT role_id FROM roles WHERE role_name = %s", (normalized_role,))
+        role_row = cursor.fetchone()
+        if not role_row:
+            raise ValueError(f"Role not found: {normalized_role}")
+
+        user_id = staff_user[0]
+        role_id = role_row[0]
+        cursor.execute(
+            """
+            UPDATE users
+            SET first_name = %s, last_name = %s, role_id = %s, account_status = %s
+            WHERE user_id = %s
+            """,
+            (first_name, last_name, role_id, new_status, user_id),
+        )
+        _assign_staff_role(cursor, user_id, role_id)
+        conn.commit()
+        return True
+    finally:
+        conn.close()
 
 # ==========================================
 # --- RESIDENT APPROVAL QUERIES ---
