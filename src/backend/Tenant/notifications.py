@@ -1,5 +1,3 @@
-# Elena Ho - 25044389
-
 
 import traceback
 from datetime import datetime, date
