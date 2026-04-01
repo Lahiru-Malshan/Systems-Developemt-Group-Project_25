@@ -119,30 +119,17 @@ def open_create_order_modal(dash):
         options=[ft.dropdown.Option(x) for x in apartment_options],
         border_color=ACCENT_BLUE,
     )
-    ref_resident = ft.Dropdown(label="Requested By", border_color=ACCENT_BLUE, disabled=True, options=[])
-    resident_lookup = {}
     ref_desc = ft.TextField(label="Issue Description", multiline=True, min_lines=3, border_color=ACCENT_BLUE)
-
-    def load_residents(e):
-        nonlocal resident_lookup
-        residents = backend.get_apartment_residents(ref_room.value) if ref_room.value else []
-        resident_lookup = {resident["name"]: resident["tenant_id"] for resident in residents}
-        ref_resident.options = [ft.dropdown.Option(resident["name"]) for resident in residents]
-        ref_resident.value = residents[0]["name"] if len(residents) == 1 else None
-        ref_resident.disabled = len(residents) == 0
-        dash.page.update()
-
-    ref_room.on_change = load_residents
 
     # --- 2. SUBMIT LOGIC ---
     def handle_submit_order(e):
-        if not ref_room.value or not ref_resident.value or not ref_desc.value:
+        if not ref_room.value or not ref_desc.value:
             dash.show_message("Please fill in all required fields!")
             return
 
         success, message = backend.create_maintenance_request(
             apartment_number=ref_room.value,
-            tenant_id=resident_lookup.get(ref_resident.value),
+            tenant_id=None,
             description=ref_desc.value,
         )
         if not success:
@@ -156,7 +143,7 @@ def open_create_order_modal(dash):
     # --- 3. MODAL UI ---
     dash.show_custom_modal(
         "Create New Work Order",
-        ft.Column([ref_room, ref_resident, ref_desc], spacing=15, tight=True, width=400),
+        ft.Column([ref_room, ref_desc], spacing=15, tight=True, width=400),
         [
             ft.Button("Cancel", on_click=dash.close_dialog),
             ft.Button("CREATE", bgcolor=ACCENT_BLUE, color="white", on_click=handle_submit_order)
@@ -166,7 +153,8 @@ def open_create_order_modal(dash):
 def _create_work_order_item(dash, order):
     wo_id = order["id"]
     room = order["room"]
-    resident_name = order["resident_name"]
+    requester_name = order.get("requester_name") or order["resident_name"]
+    requester_role = order.get("requester_role") or "Resident"
     desc = order["description"]
     status = order["status"]
     date = order["date"]
@@ -220,7 +208,7 @@ def _create_work_order_item(dash, order):
                         border_radius=5
                     ),
                 ], spacing=10),
-                ft.Text(f"Unit: {room} • Requested by: {resident_name}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
+                ft.Text(f"Unit: {room} • Requested by: {requester_role} - {requester_name}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
                 ft.Text(desc, size=13, color=TEXT_MUTED, max_lines=1, overflow="ellipsis"),
                 ft.Text(f"Assigned to: {assigned_name}", size=12, color=TEXT_MUTED),
             ], expand=True),

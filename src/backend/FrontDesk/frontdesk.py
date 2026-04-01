@@ -52,6 +52,310 @@ class FrontDeskBackend:
 		)
 		return row.get("location_id") if row else DEFAULT_FRONTDESK_LOCATION_ID
 
+	def get_pending_account_requests(self):
+		rows = self._safe_query(
+			"""
+			SELECT
+				u.user_id,
+				t.tenant_id,
+				CONCAT(u.first_name, ' ', u.last_name) AS name,
+				u.email,
+				COALESCE(u.phone_number, '') AS phone_number,
+				u.created_at,
+				u.account_status
+			FROM users u
+			LEFT JOIN tenants t ON t.user_id = u.user_id
+			WHERE u.role_id = 6
+			  AND (u.account_status = 'Inactive' OR t.tenant_id IS NULL)
+			ORDER BY u.created_at DESC, u.user_id DESC
+			"""
+		) or []
+
+		for row in rows:
+			created_at = row.get("created_at")
+			row["requested_label"] = created_at.strftime("%Y-%m-%d") if created_at else "Unknown"
+			row["approval_stage"] = "Pending account approval" if row.get("account_status") == "Inactive" else "Missing tenant profile"
+		return rows
+
+	def approve_tenant_account(self, user_id, ni_number, occupation=None):
+		conn = None
+		cursor = None
+		try:
+			ni_number = (ni_number or "").strip().upper()
+			occupation = (occupation or "").strip() or None
+			if not ni_number:
+				return False, "NI number is required to approve a tenant"
+
+			conn = self._db()
+			cursor = conn.cursor(dictionary=True)
+			cursor.execute(
+				"SELECT user_id, account_status FROM users WHERE user_id = %s AND role_id = 6",
+				(user_id,),
+			)
+			user = cursor.fetchone()
+			if not user:
+				return False, "Tenant account not found"
+
+			cursor.execute("SELECT tenant_id FROM tenants WHERE user_id = %s", (user_id,))
+			tenant = cursor.fetchone()
+			if tenant:
+				cursor.execute(
+					"UPDATE tenants SET ni_number = %s, occupation = %s WHERE tenant_id = %s",
+					(ni_number, occupation, tenant["tenant_id"]),
+				)
+			else:
+				cursor.execute(
+					"SELECT tenant_id FROM tenants WHERE ni_number = %s",
+					(ni_number,),
+				)
+				if cursor.fetchone():
+					conn.rollback()
+					return False, "NI number is already assigned to another tenant"
+				cursor.execute(
+					"INSERT INTO tenants (user_id, ni_number, occupation) VALUES (%s, %s, %s)",
+					(user_id, ni_number, occupation),
+				)
+
+			cursor.execute(
+				"UPDATE users SET account_status = 'Active' WHERE user_id = %s AND role_id = 6",
+				(user_id,),
+			)
+			conn.commit()
+			return True, "Tenant account approved"
+		except Exception as ex:
+			if conn:
+				conn.rollback()
+			return False, str(ex)
+		finally:
+			if cursor:
+				cursor.close()
+			if conn:
+				conn.close()
+
+	def reject_tenant_account(self, user_id):
+		conn = None
+		cursor = None
+		try:
+			conn = self._db()
+			cursor = conn.cursor(dictionary=True)
+			cursor.execute("SELECT tenant_id FROM tenants WHERE user_id = %s", (user_id,))
+			tenant = cursor.fetchone()
+
+			if tenant:
+				dependent_tables = (
+					"lease_agreements",
+					"maintenance_requests",
+					"complaints",
+					"tenant_references",
+					"apartment_requirements",
+					"invoices",
+					"payments",
+				)
+				for table_name in dependent_tables:
+					cursor.execute(f"SELECT COUNT(*) AS total FROM {table_name} WHERE tenant_id = %s", (tenant["tenant_id"],))
+					if (cursor.fetchone() or {}).get("total"):
+						conn.rollback()
+						return False, "Tenant has related records and cannot be deleted"
+				cursor.execute("DELETE FROM tenants WHERE tenant_id = %s", (tenant["tenant_id"],))
+
+			cursor.execute("DELETE FROM users WHERE user_id = %s AND role_id = 6", (user_id,))
+			conn.commit()
+			if cursor.rowcount == 0:
+				return False, "Tenant account not found"
+			return True, "Tenant request rejected"
+		except Exception as ex:
+			if conn:
+				conn.rollback()
+			return False, str(ex)
+		finally:
+			if cursor:
+				cursor.close()
+			if conn:
+				conn.close()
+
+	def get_pending_rental_requests(self):
+		rows = self._safe_query(
+			"""
+			SELECT
+				t.tenant_id,
+				u.user_id,
+				CONCAT(u.first_name, ' ', u.last_name) AS name,
+				u.email,
+				COALESCE(u.phone_number, '') AS phone_number,
+				ar.bedrooms,
+				ar.bathrooms,
+				ar.max_rent,
+				ar.additional_notes,
+				u.created_at
+			FROM tenants t
+			JOIN users u ON t.user_id = u.user_id
+			LEFT JOIN (
+				SELECT latest_requirements.*
+				FROM apartment_requirements latest_requirements
+				JOIN (
+					SELECT tenant_id, MAX(requirement_id) AS requirement_id
+					FROM apartment_requirements
+					GROUP BY tenant_id
+				) newest ON newest.requirement_id = latest_requirements.requirement_id
+			) ar ON ar.tenant_id = t.tenant_id
+			LEFT JOIN lease_agreements active_lease ON active_lease.tenant_id = t.tenant_id AND active_lease.status = 'Active'
+			WHERE u.role_id = 6
+			  AND u.account_status = 'Active'
+			  AND active_lease.lease_id IS NULL
+			ORDER BY u.created_at DESC, t.tenant_id DESC
+			"""
+		) or []
+
+		for row in rows:
+			bedrooms = row.get("bedrooms")
+			bathrooms = row.get("bathrooms")
+			if bedrooms or bathrooms:
+				bedroom_label = f"{bedrooms} bed" if bedrooms else "Any bed"
+				bathroom_label = f"{bathrooms} bath" if bathrooms else "Any bath"
+				row["requirements_label"] = f"{bedroom_label} / {bathroom_label}"
+			else:
+				row["requirements_label"] = "No apartment preferences provided"
+			row["max_rent_label"] = f"GBP {float(row['max_rent']):,.2f}" if row.get("max_rent") is not None else "No budget set"
+		return rows
+
+	def get_available_apartments_for_rental(self):
+		location_id = self.get_location_id()
+		return self._safe_query(
+			"""
+			SELECT
+				a.apartment_id,
+				a.apartment_number,
+				a.bedrooms,
+				a.bathrooms,
+				a.rent
+			FROM apartments a
+			LEFT JOIN lease_agreements la ON la.apartment_id = a.apartment_id AND la.status = 'Active'
+			WHERE a.location_id = %s
+			  AND a.status = 'Available'
+			  AND la.lease_id IS NULL
+			ORDER BY a.apartment_number
+			""",
+			(location_id,),
+		) or []
+
+	def approve_rental_request(self, tenant_id, apartment_id, start_date, end_date, monthly_rent):
+		conn = None
+		cursor = None
+		try:
+			lease_start = datetime.strptime(start_date, "%Y-%m-%d").date()
+			lease_end = datetime.strptime(end_date, "%Y-%m-%d").date()
+			if lease_end <= lease_start:
+				return False, "Lease end date must be after the start date"
+			monthly_rent = float(monthly_rent)
+			if monthly_rent <= 0:
+				return False, "Monthly rent must be greater than zero"
+		except ValueError:
+			return False, "Enter valid lease dates and rent"
+
+		location_id = self.get_location_id()
+		tenant = self._safe_query(
+			"""
+			SELECT t.tenant_id
+			FROM tenants t
+			JOIN users u ON t.user_id = u.user_id
+			LEFT JOIN lease_agreements la ON la.tenant_id = t.tenant_id AND la.status = 'Active'
+			WHERE t.tenant_id = %s
+			  AND u.role_id = 6
+			  AND u.account_status = 'Active'
+			  AND la.lease_id IS NULL
+			""",
+			(tenant_id,),
+			fetch_one=True,
+		)
+		if not tenant:
+			return False, "Tenant is not eligible for a new rental approval"
+
+		apartment = self._safe_query(
+			"""
+			SELECT a.apartment_id
+			FROM apartments a
+			LEFT JOIN lease_agreements la ON la.apartment_id = a.apartment_id AND la.status = 'Active'
+			WHERE a.apartment_id = %s
+			  AND a.location_id = %s
+			  AND a.status = 'Available'
+			  AND la.lease_id IS NULL
+			""",
+			(apartment_id, location_id),
+			fetch_one=True,
+		)
+		if not apartment:
+			return False, "Apartment is not available for this front desk location"
+
+		try:
+			conn = self._db()
+			cursor = conn.cursor()
+			cursor.execute(
+				"""
+				INSERT INTO lease_agreements (tenant_id, apartment_id, start_date, end_date, monthly_rent, status)
+				VALUES (%s, %s, %s, %s, %s, 'Active')
+				""",
+				(tenant_id, apartment_id, lease_start, lease_end, monthly_rent),
+			)
+			cursor.execute("UPDATE apartments SET status = 'Occupied' WHERE apartment_id = %s", (apartment_id,))
+			conn.commit()
+			return True, "Rental approved and lease created"
+		except Exception as ex:
+			if conn:
+				conn.rollback()
+			return False, str(ex)
+		finally:
+			if cursor:
+				cursor.close()
+			if conn:
+				conn.close()
+
+	def ensure_maintenance_request_requester_columns(self):
+		conn = None
+		cursor = None
+		try:
+			conn = self._db()
+			cursor = conn.cursor()
+			cursor.execute(
+				"""
+				SELECT COUNT(*)
+				FROM information_schema.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+				  AND TABLE_NAME = 'maintenance_requests'
+				  AND COLUMN_NAME = 'created_by_frontdesk'
+				"""
+			)
+			has_requester_column = cursor.fetchone()[0] > 0
+			if not has_requester_column:
+				cursor.execute("ALTER TABLE maintenance_requests ADD COLUMN created_by_frontdesk INT DEFAULT NULL AFTER tenant_id")
+				cursor.execute("ALTER TABLE maintenance_requests ADD KEY created_by_frontdesk (created_by_frontdesk)")
+
+			cursor.execute(
+				"""
+				SELECT COUNT(*)
+				FROM information_schema.TABLE_CONSTRAINTS
+				WHERE TABLE_SCHEMA = DATABASE()
+				  AND TABLE_NAME = 'maintenance_requests'
+				  AND CONSTRAINT_NAME = 'maintenance_requests_ibfk_frontdesk'
+				  AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+				"""
+			)
+			has_requester_fk = cursor.fetchone()[0] > 0
+			if not has_requester_fk:
+				cursor.execute(
+					"ALTER TABLE maintenance_requests ADD CONSTRAINT maintenance_requests_ibfk_frontdesk FOREIGN KEY (created_by_frontdesk) REFERENCES frontdesk_staff (frontdesk_staff_id)"
+				)
+			conn.commit()
+			return True
+		except Exception:
+			if conn:
+				conn.rollback()
+			return False
+		finally:
+			if cursor:
+				cursor.close()
+			if conn:
+				conn.close()
+
 	def ensure_parcels_table(self):
 		conn = None
 		cursor = None
@@ -179,6 +483,7 @@ class FrontDeskBackend:
 
 	def get_recent_open_orders(self, limit=5):
 		location_id = self.get_location_id()
+		self.ensure_maintenance_request_requester_columns()
 		rows = self._safe_query(
 			f"""
 			SELECT
@@ -187,11 +492,16 @@ class FrontDeskBackend:
 				m.description,
 				m.status,
 				m.reported_at,
-				CONCAT(u.first_name, ' ', u.last_name) AS resident_name
+				CASE
+					WHEN m.created_by_frontdesk IS NOT NULL THEN CONCAT(fu.first_name, ' ', fu.last_name)
+					ELSE CONCAT(u.first_name, ' ', u.last_name)
+				END AS resident_name
 			FROM maintenance_requests m
 			JOIN apartments a ON m.apartment_id = a.apartment_id
 			JOIN tenants t ON m.tenant_id = t.tenant_id
 			JOIN users u ON t.user_id = u.user_id
+			LEFT JOIN frontdesk_staff fs ON m.created_by_frontdesk = fs.frontdesk_staff_id
+			LEFT JOIN users fu ON fs.user_id = fu.user_id
 			WHERE a.location_id = %s
 			  AND m.status IN ('Pending', 'In Progress')
 			ORDER BY m.reported_at DESC
@@ -439,12 +749,21 @@ class FrontDeskBackend:
 
 	def get_maintenance_requests(self):
 		location_id = self.get_location_id()
+		self.ensure_maintenance_request_requester_columns()
 		rows = self._safe_query(
 			"""
 			SELECT
 				m.request_id,
 				a.apartment_number AS room,
 				CONCAT(u.first_name, ' ', u.last_name) AS resident_name,
+				CASE
+					WHEN m.created_by_frontdesk IS NOT NULL THEN CONCAT(fu.first_name, ' ', fu.last_name)
+					ELSE CONCAT(u.first_name, ' ', u.last_name)
+				END AS requester_name,
+				CASE
+					WHEN m.created_by_frontdesk IS NOT NULL THEN 'Front Desk Staff'
+					ELSE 'Resident'
+				END AS requester_role,
 				m.description,
 				m.status,
 				m.reported_at,
@@ -454,6 +773,8 @@ class FrontDeskBackend:
 			JOIN apartments a ON m.apartment_id = a.apartment_id
 			JOIN tenants t ON m.tenant_id = t.tenant_id
 			JOIN users u ON t.user_id = u.user_id
+			LEFT JOIN frontdesk_staff fs ON m.created_by_frontdesk = fs.frontdesk_staff_id
+			LEFT JOIN users fu ON fs.user_id = fu.user_id
 			LEFT JOIN maintenance_staff ms ON m.assigned_to = ms.maintenance_staff_id
 			LEFT JOIN users mu ON ms.user_id = mu.user_id
 			WHERE a.location_id = %s
@@ -487,13 +808,14 @@ class FrontDeskBackend:
 		return rows
 
 	def create_maintenance_request(self, apartment_number, tenant_id, description):
-		if not apartment_number or not tenant_id or not description:
-			return False, "Apartment, tenant, and description are required"
+		if not apartment_number or not description:
+			return False, "Apartment and description are required"
 
 		conn = None
 		cursor = None
 		try:
 			location_id = self.get_location_id()
+			self.ensure_maintenance_request_requester_columns()
 			apartment = self._safe_query(
 				"SELECT apartment_id FROM apartments WHERE apartment_number = %s AND location_id = %s",
 				(apartment_number, location_id),
@@ -502,8 +824,14 @@ class FrontDeskBackend:
 			if not apartment:
 				return False, "Apartment not found for this front desk location"
 
+			resident_params = [location_id, apartment_number]
+			resident_filter = ""
+			if tenant_id:
+				resident_filter = " AND t.tenant_id = %s"
+				resident_params.append(tenant_id)
+
 			resident = self._safe_query(
-				"""
+				f"""
 				SELECT t.tenant_id
 				FROM lease_agreements la
 				JOIN apartments a ON la.apartment_id = a.apartment_id
@@ -511,24 +839,28 @@ class FrontDeskBackend:
 				JOIN users u ON t.user_id = u.user_id
 				WHERE a.location_id = %s
 				  AND a.apartment_number = %s
-				  AND t.tenant_id = %s
 				  AND la.status = 'Active'
 				  AND u.account_status = 'Active'
+				  {resident_filter}
+				ORDER BY u.first_name, u.last_name
+				LIMIT 1
 				""",
-				(location_id, apartment_number, tenant_id),
+				tuple(resident_params),
 				fetch_one=True,
 			)
 			if not resident:
-				return False, "Selected tenant is not linked to the apartment"
+				if tenant_id:
+					return False, "Selected tenant is not linked to the apartment"
+				return False, "No active resident is linked to the selected apartment"
 
 			conn = self._db()
 			cursor = conn.cursor()
 			cursor.execute(
 				"""
-				INSERT INTO maintenance_requests (tenant_id, apartment_id, description, status, reported_at)
-				VALUES (%s, %s, %s, 'Pending', NOW())
+				INSERT INTO maintenance_requests (tenant_id, created_by_frontdesk, apartment_id, description, status, reported_at)
+				VALUES (%s, %s, %s, %s, 'Pending', NOW())
 				""",
-				(tenant_id, apartment["apartment_id"], description),
+				(resident["tenant_id"], self._get_frontdesk_staff_id(), apartment["apartment_id"], description),
 			)
 			conn.commit()
 			return True, "Maintenance request logged successfully"
