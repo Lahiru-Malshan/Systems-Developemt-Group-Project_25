@@ -10,6 +10,7 @@ from .residents import *
 from .work_orders import *
 from .parcel_mgr import *
 from settingsStaff import *
+from backend.FrontDesk.frontdesk import FrontDeskBackend
 
 import flet as ft
 
@@ -46,15 +47,19 @@ class FrontDeskDashboard(BaseDashboard):
         self.switch_page("Overview", "Building Status Summary", self.show_overview)
     
     def show_overview(self, *args):
+        backend = FrontDeskBackend(user_id=getattr(self, "user_id", None), username=self.username)
+        stats = backend.get_dashboard_stats()
+        recent_orders = backend.get_recent_open_orders(limit=3)
+        recent_parcels = backend.get_recent_parcels(limit=3)
 
         self.detail_area = ft.Column(expand=True, spacing=15)
 
         stats_row = ft.Row(
             spacing=20,
             controls=[
-                self.create_stat_card("Occupied Units", "185/200", ft.Icons.APARTMENT),
-                self.create_stat_card("Pending Parcels", "24", ft.Icons.INVENTORY_2_ROUNDED, highlight=True),
-                self.create_stat_card("Open Orders", "8", ft.Icons.BUILD_CIRCLE),
+                self.create_stat_card("Occupied Units", stats["occupied_units_label"], ft.Icons.APARTMENT),
+                self.create_stat_card("Pending Parcels", str(stats["pending_parcels"]), ft.Icons.INVENTORY_2_ROUNDED, highlight=True),
+                self.create_stat_card("Open Orders", str(stats["open_orders"]), ft.Icons.BUILD_CIRCLE),
             ]
         )
 
@@ -70,7 +75,17 @@ class FrontDeskDashboard(BaseDashboard):
                         ft.Text("Urgent Work Orders", size=18, weight="bold", color=TEXT_DARK),
                         ft.Container(
                             bgcolor="white", padding=20, border_radius=12,
-                            content=ft.Text("No urgent repair requests at the moment.", italic=True, color=TEXT_DARK)
+                            content=ft.Column(
+                                [
+                                    ft.ListTile(
+                                        leading=ft.Icon(ft.Icons.BUILD_CIRCLE, color=ACCENT_BLUE),
+                                        title=ft.Text(f"Unit {item['apartment_number']} - {item['resident_name']}", color=TEXT_DARK),
+                                        subtitle=ft.Text(item["description"], color=TEXT_MUTED),
+                                    )
+                                    for item in recent_orders
+                                ]
+                                or [ft.Text("No open repair requests at the moment.", italic=True, color=TEXT_DARK)]
+                            )
                         )
                     ]
                 ),
@@ -82,9 +97,15 @@ class FrontDeskDashboard(BaseDashboard):
                         ft.Container(
                             bgcolor="white", padding=20, border_radius=12,
                             content=ft.Column([
-                                ft.ListTile(leading=ft.Icon(ft.Icons.LOCAL_SHIPPING, color= ACCENT_BLUE), title=ft.Text("Unit 302 - SPX", color=TEXT_DARK), subtitle=ft.Text("10 mins ago")),
-                                ft.ListTile(leading=ft.Icon(ft.Icons.LOCAL_SHIPPING, color=ACCENT_BLUE), title=ft.Text("Unit 105 - GrabFood", color=TEXT_DARK), subtitle=ft.Text("25 mins ago")),
-                            ])
+                                *[
+                                    ft.ListTile(
+                                        leading=ft.Icon(ft.Icons.LOCAL_SHIPPING, color=ACCENT_BLUE),
+                                        title=ft.Text(f"Unit {item['room']} - {item['carrier']}", color=TEXT_DARK),
+                                        subtitle=ft.Text(f"Recipient: {item['display_recipient']}", color=TEXT_MUTED),
+                                    )
+                                    for item in recent_parcels
+                                ]
+                            ] or [ft.Text("No parcels logged yet.", italic=True, color=TEXT_DARK)])
                         )
                     ]
                 )

@@ -5,24 +5,23 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import flet as ft
-from datetime import datetime
-from logic.notifications import *
 from base_dashboard import *
 from logic.search import *
+from backend.FrontDesk.frontdesk import FrontDeskBackend
 
-# Mock data
-# Structure: [ID, Unit, Category, Description, Priority, Status, Date]
-test_work_orders = [
-    {"id": "WO-001", "room": "302", "category": "Plumbing", "desc": "Kitchen sink leaking", "priority": "High", "status": "In Progress", "date": "2026-02-15", "days": 5},
-    {"id": "WO-002", "room": "105", "category": "Electrical", "desc": "AC not cooling", "priority": "Medium", "status": "Pending", "date": "2026-02-16", "days": 4},
-    {"id": "WO-003", "room": "B-704", "category": "Carpentry", "desc": "Broken wardrobe door", "priority": "Low", "status": "Completed", "date": "2026-02-14", "days": 6},
-]
+
+
+def _get_frontdesk_backend(dash):
+    return FrontDeskBackend(user_id=getattr(dash, "user_id", None), username=getattr(dash, "username", None))
 
 def show_work_orders(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
     if not hasattr(dash, "order_list_column"):
         dash.order_list_column = ft.Column(spacing=10, scroll=ft.ScrollMode.ALWAYS)
+
+    backend = _get_frontdesk_backend(dash)
+    dash.work_order_data = backend.get_maintenance_requests()
     
     # --- 1. HEADER ---
     header = ft.Container(
@@ -41,9 +40,9 @@ def show_work_orders(dash, *args):
     )
 
     # --- 2. STATS ---
-    pending_cnt = len([o for o in test_work_orders if o["status"] == "Pending"])
-    progress_cnt = len([o for o in test_work_orders if o["status"] in ["In Progress", "Assigned"]])
-    completed_cnt = len([o for o in test_work_orders if o["status"] == "Completed"])
+    pending_cnt = len([o for o in dash.work_order_data if o["status"] == "Pending"])
+    progress_cnt = len([o for o in dash.work_order_data if o["status"] == "In Progress"])
+    completed_cnt = len([o for o in dash.work_order_data if o["status"] == "Resolved"])
     
     order_stats = ft.Row([
         dash.create_stat_card("Pending", str(pending_cnt), ft.Icons.PENDING_ACTIONS_ROUNDED),
@@ -89,18 +88,16 @@ def apply_work_order_filters(dash):
     if not hasattr(dash, "order_list_column"): return
 
     filtered = SearchEngine.apply_logic(
-        data_list=test_work_orders,
+        data_list=getattr(dash, "work_order_data", []),
         search_term=dash.wo_search.value
     )
 
-    status_order = {"Pending": 0, "In Progress": 1, "Assigned": 2, "Completed": 3}
-    priority_order = {"High": 0, "Medium": 1, "Low": 2}
+    status_order = {"Pending": 0, "In Progress": 1, "Resolved": 2}
     
     final_list = sorted(
         filtered,
         key=lambda x: (
             status_order.get(x["status"], 99),
-            priority_order.get(x["priority"], 99),
             x["date"]
         )
     )
@@ -113,51 +110,53 @@ def apply_work_order_filters(dash):
     dash.page.update()
     
 def open_create_order_modal(dash):
+    backend = _get_frontdesk_backend(dash)
+    apartment_options = backend.get_apartment_options()
+
     # --- 1. REFS TO COLLECT DATA ---
-    ref_room = ft.TextField(label="Unit Number", hint_text="e.g. 302 or Common Area", border_color=ACCENT_BLUE)
-    ref_category = ft.Dropdown(
-        label="Category",
-        options=[ft.dropdown.Option(x) for x in ["Plumbing", "Electrical", "General", "Elevator"]],
-        border_color=ACCENT_BLUE
-    )
-    ref_priority = ft.Dropdown(
-        label="Priority Level",
-        options=[ft.dropdown.Option(x) for x in ["High", "Medium", "Low"]],
-        value="Medium",
+    ref_room = ft.Dropdown(
+        label="Apartment Number",
+        options=[ft.dropdown.Option(x) for x in apartment_options],
         border_color=ACCENT_BLUE,
     )
+    ref_resident = ft.Dropdown(label="Requested By", border_color=ACCENT_BLUE, disabled=True, options=[])
+    resident_lookup = {}
     ref_desc = ft.TextField(label="Issue Description", multiline=True, min_lines=3, border_color=ACCENT_BLUE)
+
+    def load_residents(e):
+        nonlocal resident_lookup
+        residents = backend.get_apartment_residents(ref_room.value) if ref_room.value else []
+        resident_lookup = {resident["name"]: resident["tenant_id"] for resident in residents}
+        ref_resident.options = [ft.dropdown.Option(resident["name"]) for resident in residents]
+        ref_resident.value = residents[0]["name"] if len(residents) == 1 else None
+        ref_resident.disabled = len(residents) == 0
+        dash.page.update()
+
+    ref_room.on_change = load_residents
 
     # --- 2. SUBMIT LOGIC ---
     def handle_submit_order(e):
-        if not ref_room.value or not ref_desc.value:
+        if not ref_room.value or not ref_resident.value or not ref_desc.value:
             dash.show_message("Please fill in all required fields!")
             return
-        
-        # Add to our global test list (Mock DB)
-        global test_work_orders
-        current_date = datetime.now().strftime("%Y-%m-%d")
-        new_id = f"WO-{len(test_work_orders) + 1}"
-        
-        test_work_orders.insert(0, {
-            "id": new_id,
-            "room": ref_room.value,
-            "category": ref_category.value if ref_category.value else "General",
-            "desc": ref_desc.value,
-            "priority": ref_priority.value,
-            "status": "Pending",
-            "date": current_date,
-            "days": 0
-        })
+
+        success, message = backend.create_maintenance_request(
+            apartment_number=ref_room.value,
+            tenant_id=resident_lookup.get(ref_resident.value),
+            description=ref_desc.value,
+        )
+        if not success:
+            dash.show_message(f"Error: {message}")
+            return
 
         dash.close_dialog()
         show_work_orders(dash)
-        dash.show_message(f"Work Order {new_id} created successfully!")
+        dash.show_message(message)
 
     # --- 3. MODAL UI ---
     dash.show_custom_modal(
         "Create New Work Order",
-        ft.Column([ref_room, ref_category, ref_priority, ref_desc], spacing=15, tight=True, width=400),
+        ft.Column([ref_room, ref_resident, ref_desc], spacing=15, tight=True, width=400),
         [
             ft.Button("Cancel", on_click=dash.close_dialog),
             ft.Button("CREATE", bgcolor=ACCENT_BLUE, color="white", on_click=handle_submit_order)
@@ -167,34 +166,37 @@ def open_create_order_modal(dash):
 def _create_work_order_item(dash, order):
     wo_id = order["id"]
     room = order["room"]
-    cat = order["category"]
-    desc = order["desc"]
-    priority = order["priority"]
+    resident_name = order["resident_name"]
+    desc = order["description"]
     status = order["status"]
     date = order["date"]
+    assigned_name = order.get("assigned_name", "Unassigned")
     
     status_colors = {
         "Pending": ft.Colors.ORANGE_700,
-        "Assigned": ft.Colors.BLUE_700,
-        "Completed": ft.Colors.GREEN_700
+        "In Progress": ft.Colors.BLUE_700,
+        "Resolved": ft.Colors.GREEN_700
     }
     s_color = status_colors.get(status, ft.Colors.GREY_400)
-    
-    priority = order.get("priority", "Low")
-    priority_colors = {
-        "High": ft.Colors.RED_700,
-        "Medium": ft.Colors.ORANGE_700,
-        "Low": ft.Colors.BLUE_GREY_400
-    }
-    p_color = priority_colors.get(priority, ft.Colors.GREY_400)
 
     if status == "Pending":
-        action_button = ft.Button(
-            content=ft.Text("Assign Tech", size=11, color="white", weight="bold"),
-            bgcolor=ACCENT_BLUE,
-            height=30,
-            on_click=lambda _: handle_assign_order(dash, wo_id, room)
-        )
+        action_button = ft.Row([
+            ft.Button(
+                content=ft.Text("Assign Tech", size=11, color="white", weight="bold"),
+                bgcolor=ACCENT_BLUE,
+                height=30,
+                on_click=lambda _: handle_assign_order(dash, order)
+            )
+        ])
+    elif status == "In Progress":
+        action_button = ft.Row([
+            ft.Button(
+                content=ft.Text("Resolve", size=11, color="white", weight="bold"),
+                bgcolor=ft.Colors.GREEN_700,
+                height=30,
+                on_click=lambda _: handle_resolve_order(dash, order["request_id"])
+            )
+        ])
     else:
         action_button = ft.Container(
             content=ft.Text(status, size=11, color="white", weight="bold"),
@@ -210,17 +212,17 @@ def _create_work_order_item(dash, order):
         content=ft.Row([
             ft.Column([
                 ft.Row([
-                    ft.Text(cat, weight="bold", size=14, color=TEXT_DARK),
+                    ft.Text(f"• {wo_id}", size=11, color=TEXT_MUTED),
                     ft.Container(
-                        content=ft.Text(priority, size=10, color="white", weight="bold"),
-                        bgcolor=p_color,
+                        content=ft.Text(status, size=10, color="white", weight="bold"),
+                        bgcolor=s_color,
                         padding=ft.Padding.symmetric(horizontal=8, vertical=2),
                         border_radius=5
                     ),
-                    ft.Text(f"• {wo_id}", size=11, color=TEXT_MUTED),
                 ], spacing=10),
-                ft.Text(f"Unit: {room}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
+                ft.Text(f"Unit: {room} • Requested by: {resident_name}", size=12, color=TEXT_MUTED, weight=ft.FontWeight.W_500),
                 ft.Text(desc, size=13, color=TEXT_MUTED, max_lines=1, overflow="ellipsis"),
+                ft.Text(f"Assigned to: {assigned_name}", size=12, color=TEXT_MUTED),
             ], expand=True),
             ft.Column([
                 ft.Text(date, size=11, color=TEXT_MUTED),
@@ -229,24 +231,44 @@ def _create_work_order_item(dash, order):
         ])
     )
     
-def handle_assign_order(dash, wo_id, room):
-    global test_work_orders
-    
-    try:
-        for order in test_work_orders:
-            if order["id"] == wo_id:
-                order["status"] = "Assigned"
-                break
+def handle_assign_order(dash, order):
+    backend = _get_frontdesk_backend(dash)
+    staff_options = backend.get_maintenance_staff_options()
+    if not staff_options:
+        dash.show_message("No active maintenance staff found for this location.")
+        return
 
-        send_notification(
-            dash,
-            user_id=room,
-            title="Maintenance Update",
-            message=f"Your request {wo_id} has been assigned to a technician."
+    staff_dropdown = ft.Dropdown(
+        label="Assign To",
+        border_color=ACCENT_BLUE,
+        options=[ft.dropdown.Option(staff["name"]) for staff in staff_options],
+        value=staff_options[0]["name"],
+    )
+    staff_lookup = {staff["name"]: staff["maintenance_staff_id"] for staff in staff_options}
+
+    def save_assignment(e):
+        success, message = backend.assign_maintenance_request(
+            order["request_id"],
+            staff_lookup.get(staff_dropdown.value),
         )
-        
-        dash.show_message(f"Work order {wo_id} assigned.")
+        dash.close_dialog()
+        dash.show_message(message)
+        if success:
+            show_work_orders(dash)
+
+    dash.show_custom_modal(
+        f"Assign {order['id']}",
+        ft.Column([staff_dropdown], spacing=15, tight=True, width=400),
+        [
+            ft.Button("Cancel", on_click=dash.close_dialog),
+            ft.Button("ASSIGN", bgcolor=ACCENT_BLUE, color="white", on_click=save_assignment),
+        ],
+    )
+
+
+def handle_resolve_order(dash, request_id):
+    backend = _get_frontdesk_backend(dash)
+    success, message = backend.update_maintenance_request_status(request_id, "Resolved")
+    dash.show_message(message)
+    if success:
         show_work_orders(dash)
-        
-    except Exception as e:
-        dash.show_message(f"Error: {str(e)}")

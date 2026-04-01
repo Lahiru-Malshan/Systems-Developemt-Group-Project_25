@@ -9,19 +9,25 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import flet as ft
 from base_dashboard import *
 from logic.search import *
+from backend.FrontDesk.frontdesk import FrontDeskBackend
 
-# Mock Database for Residents
-test_residents_data = [
-    {"room": "A-302", "name": "Nguyen Van A", "type": "Owner", "contact": "0901234567", "block": "A"},
-    {"room": "B-105", "name": "Tran Thi B", "type": "Tenant", "contact": "0987654321", "block": "B"},
-    {"room": "A-1204", "name": "Le Van C", "type": "Owner", "contact": "0912334455", "block": "A"},
-]
+
+def _get_frontdesk_backend(dash):
+    return FrontDeskBackend(user_id=getattr(dash, "user_id", None), username=getattr(dash, "username", None))
 
 def show_residents(dash, *args):
     if not dash: return
     dash.content_column.controls.clear()
     if not hasattr(dash, "resident_table_area"):
         dash.resident_table_area = ft.Column(expand=True)
+
+    backend = _get_frontdesk_backend(dash)
+    resident_data = backend.get_resident_directory()
+    resident_stats = backend.get_resident_stats()
+    dash.resident_data = resident_data
+
+    block_options = sorted({resident.get("block", "N/A") for resident in resident_data if resident.get("block")})
+    dropdown_options = [ft.dropdown.Option("All Blocks")] + [ft.dropdown.Option(block) for block in block_options]
     
     # --- 1. HEADER SECTION ---
     header = ft.Container(
@@ -38,13 +44,13 @@ def show_residents(dash, *args):
                 ),
                 ft.Row([
                     ft.Text("Occupied:", size=13, weight="w500", color=TEXT_MUTED),
-                    ft.Text("185", size=13, weight="bold", color=ACCENT_BLUE),
+                    ft.Text(str(resident_stats["occupied_units"]), size=13, weight="bold", color=ACCENT_BLUE),
                     ft.VerticalDivider(width=10, color="transparent"),
                     ft.Text("Vacant:", size=13, weight="w500", color=TEXT_MUTED),
-                    ft.Text("15", size=13, weight="bold", color=ft.Colors.ORANGE_700),
+                    ft.Text(str(resident_stats["vacant_units"]), size=13, weight="bold", color=ft.Colors.ORANGE_700),
                 ], spacing=5)
             ], spacing=15),
-            ft.Button("Add Resident", icon=ft.Icons.ADD, bgcolor=ACCENT_BLUE, color="white",on_click=lambda _: draw_resident_registration(dash))
+            ft.Button("Refresh Directory", icon=ft.Icons.REFRESH, bgcolor=ACCENT_BLUE, color="white",on_click=lambda _: show_residents(dash))
         ], alignment="spaceBetween")
     )
 
@@ -59,7 +65,7 @@ def show_residents(dash, *args):
         width=150,
         label="Block",
         color=TEXT_DARK,
-        options=[ft.dropdown.Option("All Blocks"), ft.dropdown.Option("A"), ft.dropdown.Option("B")],
+        options=dropdown_options,
         value="All Blocks"
     )
     apply_btn = ft.Button(
@@ -105,7 +111,7 @@ def show_residents(dash, *args):
                     title=ft.Text(r["name"], size=13, weight="bold", color=TEXT_DARK),
                     subtitle=ft.Text(f"Unit {r['room']}", size=11, color=TEXT_MUTED),
                     dense=True
-                ) for r in test_residents_data[:3]
+                ) for r in resident_stats["recent_residents"]
             ])
         ], spacing=15)
     )
@@ -120,7 +126,7 @@ def apply_resident_filters(dash):
 
     block_filter = dash.res_block_filter.value
     filtered = SearchEngine.apply_logic(
-        data_list=test_residents_data,
+        data_list=getattr(dash, "resident_data", []),
         search_term=dash.res_search_box.value,
         filters={"block": block_filter} if block_filter != "All Blocks" else None
     )
@@ -145,97 +151,10 @@ def apply_resident_filters(dash):
     dash.page.update()
 
 def draw_resident_registration(dash, *args):
-    dash.content_column.controls.clear()
-
-    ref_block = ft.TextField(label="Block", expand=True, border_radius=8, color=TEXT_DARK, hint_text="e.g. A")
-    ref_room = ft.TextField(label="Unit Number", expand=True, border_radius=8, color=TEXT_DARK)
-    ref_name = ft.TextField(label="Full Name", expand=True, border_radius=8, color=TEXT_DARK)
-    ref_email = ft.TextField(label="Email Address", expand=True, border_radius=8, color=TEXT_DARK)
-    ref_phone = ft.TextField(label="Phone Number", expand=True, border_radius=8, color=TEXT_DARK)
-    ref_dob = ft.TextField(label="Date of Birth", expand=True, border_radius=8, hint_text="DD/MM/YYYY", color=TEXT_DARK)
-    ref_id = ft.TextField(label="ID / Passport Number", expand=True, border_radius=8, color=TEXT_DARK)
-    ref_type = ft.Dropdown(
-        label="Resident Type",
-        expand=True,
-        border_radius=8,
-        color=TEXT_DARK,
-        options=[
-            ft.dropdown.Option("Owner"),
-            ft.dropdown.Option("Tenant"),
-            ft.dropdown.Option("Family Member"),
-        ]
-    )
-    
-    back_btn = ft.Button(
-        content=ft.Row([
-            ft.Icon(ft.Icons.ARROW_BACK_IOS_NEW_ROUNDED, color=NAVY_SECOND, size=16),
-            ft.Text("Back to Directory", color=NAVY_SECOND, weight="bold"),
-        ], tight=True),
-        bgcolor="transparent",
-        on_click=lambda _: show_residents(dash)
-    )
-
-    registration_card = ft.Container(
-        bgcolor=CARD_BG,
-        padding=30,
-        border_radius=12,
-        content=ft.Column([
-            ft.Text("Register New Resident", size=20, weight="bold", color=TEXT_DARK),
-            ft.Divider(height=20),
-            
-            # Apartment Info
-            ft.Row([ref_block, ref_room], spacing=20),
-
-            # Personal Info
-            ft.Row([ref_name, ref_email], spacing=20),
-            ft.Row([ref_phone, ref_dob], spacing=20),
-            ft.Row([ref_type, ref_id], spacing=20),
-            ft.Divider(height=20),
-            
-            # Action Buttons
-            ft.Row([
-                ft.Button(
-                    content=ft.Text("Confirm Registration", color="white", weight="bold"),
-                    bgcolor=ACCENT_BLUE,
-                    width=200,
-                    on_click=lambda _: handle_save_resident(
-                        dash,
-                        ref_block.value,
-                        ref_room.value,
-                        ref_name.value,
-                        ref_phone.value,
-                        ref_type.value
-                    )
-                ),
-            ], alignment="end")
-        ], spacing=15)
-    )
-
-    dash.content_column.controls.extend([back_btn, registration_card])
-    dash.page.update()
+    dash.show_message("Resident creation should go through tenant onboarding and lease management.")
 
 def handle_save_resident(dash, block, room, name, phone, res_type):
-    if not room or not name or not phone:
-        dash.show_message("Error: Unit, Name and Phone are required!")
-        return
-
-    try:
-        global test_residents_data
-        full_room = f"{block}-{room}" if block else room
-
-        test_residents_data.insert(0, {
-            "room": full_room,
-            "name": name,
-            "type": res_type,
-            "contact": phone,
-            "block": block
-        })
-
-        dash.show_message(f"Resident {name} registered successfully!")
-        show_residents(dash)
-        
-    except Exception as e:
-        dash.show_message(f"Registration failed: {str(e)}")
+    dash.show_message("Resident creation is not available from the front desk screen yet.")
 
 def _create_resident_row(dash, item):
     type_color = ACCENT_BLUE if item["type"] == "Owner" else ft.Colors.ORANGE_700

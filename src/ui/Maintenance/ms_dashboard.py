@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from base_dashboard import *
 from .work_orders import *
 from settingsStaff import *
+from backend.Maintance.maintenance_process import MaintenanceProcessBackend
 import flet as ft
 
 class MaintenanceDashboard(BaseDashboard):
@@ -31,6 +32,10 @@ class MaintenanceDashboard(BaseDashboard):
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self, *args):
 
+        backend = MaintenanceProcessBackend(user_id=getattr(self, "user_id", None), username=self.username)
+        stats = backend.get_dashboard_stats()
+        urgent_requests = backend.get_urgent_tasks(limit=3)
+
         self.content_column.controls.clear()
 
         # --- 1. WELCOME HEADER ---
@@ -43,9 +48,9 @@ class MaintenanceDashboard(BaseDashboard):
 
         # --- 2. QUICK STATS ---
         stats_row = ft.Row([
-            self.create_stat_card("New Requests", "08", ft.Icons.FIBER_NEW_ROUNDED),
-            self.create_stat_card("On-Going", "03", ft.Icons.HANDYMAN_ROUNDED),
-            self.create_stat_card("Resolved", "12", ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED),
+            self.create_stat_card("New Requests", str(stats["new_requests"]), ft.Icons.FIBER_NEW_ROUNDED),
+            self.create_stat_card("On-Going", str(stats["ongoing"]), ft.Icons.HANDYMAN_ROUNDED),
+            self.create_stat_card("Resolved", str(stats["resolved"]), ft.Icons.CHECK_CIRCLE_OUTLINE_ROUNDED),
         ], spacing=20)
 
         # --- 3. URGENT TASKS SECTION ---
@@ -54,14 +59,19 @@ class MaintenanceDashboard(BaseDashboard):
             ft.Text("Urgent Attention Required", weight="bold", size=16, color=TEXT_DARK),
         ], spacing=10)
 
-        urgent_requests = [
-            ("A-1204", "Water Pipe Burst", "10 mins ago", "Emergency"),
-            ("B-302", "Power Outage", "25 mins ago", "High Priority"),
-        ]
-
         urgent_list = ft.Column(spacing=10)
-        for room, issue, time, label in urgent_requests:
-            urgent_list.controls.append(self._create_urgent_card(room, issue, time, label))
+        if urgent_requests:
+            for item in urgent_requests:
+                urgent_list.controls.append(self._create_urgent_card(item["room"], item["issue"], item["reportedDate"], item["status"]))
+        else:
+            urgent_list.controls.append(
+                ft.Container(
+                    bgcolor=CARD_BG,
+                    padding=15,
+                    border_radius=10,
+                    content=ft.Text("No assigned work orders require attention right now.", color=TEXT_MUTED)
+                )
+            )
 
         # --- 4. MAIN LAYOUT  ---
         main_content = ft.Row([

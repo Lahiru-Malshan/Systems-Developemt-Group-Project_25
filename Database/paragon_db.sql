@@ -215,6 +215,39 @@ INSERT INTO `frontdesk_staff` (`frontdesk_staff_id`, `user_id`, `location_id`, `
 COMMIT;
 
 -- ----------------------------
+-- Table structure for parcels
+-- ----------------------------
+DROP TABLE IF EXISTS `parcels`;
+CREATE TABLE `parcels` (
+  `parcel_id` int NOT NULL AUTO_INCREMENT,
+  `apartment_id` int NOT NULL,
+  `tenant_id` int DEFAULT NULL,
+  `logged_by` int DEFAULT NULL,
+  `recipient_name` varchar(120) DEFAULT NULL,
+  `carrier` varchar(100) NOT NULL,
+  `storage_type` enum('Standard','Cold/Food','Fragile/Large') DEFAULT 'Standard',
+  `note` text,
+  `status` enum('Pending','Picked Up') DEFAULT 'Pending',
+  `received_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `picked_up_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`parcel_id`),
+  KEY `apartment_id` (`apartment_id`),
+  KEY `tenant_id` (`tenant_id`),
+  KEY `logged_by` (`logged_by`),
+  CONSTRAINT `parcels_ibfk_1` FOREIGN KEY (`apartment_id`) REFERENCES `apartments` (`apartment_id`),
+  CONSTRAINT `parcels_ibfk_tenant` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`tenant_id`),
+  CONSTRAINT `parcels_ibfk_2` FOREIGN KEY (`logged_by`) REFERENCES `frontdesk_staff` (`frontdesk_staff_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- ----------------------------
+-- Records of parcels
+-- ----------------------------
+BEGIN;
+INSERT INTO `parcels` (`parcel_id`, `apartment_id`, `tenant_id`, `logged_by`, `recipient_name`, `carrier`, `storage_type`, `note`, `status`, `received_at`, `picked_up_at`) VALUES (1, 2, 1, 1, 'C D', 'Amazon', 'Standard', 'Leave at front desk', 'Pending', '2026-03-18 10:30:00', NULL);
+INSERT INTO `parcels` (`parcel_id`, `apartment_id`, `tenant_id`, `logged_by`, `recipient_name`, `carrier`, `storage_type`, `note`, `status`, `received_at`, `picked_up_at`) VALUES (2, 1, NULL, 1, 'Emma Clark', 'Deliveroo', 'Cold/Food', 'Keep chilled', 'Picked Up', '2026-03-18 11:45:00', '2026-03-18 12:15:00');
+COMMIT;
+
+-- ----------------------------
 -- Table structure for invoices
 -- ----------------------------
 DROP TABLE IF EXISTS `invoices`;

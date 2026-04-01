@@ -8,4 +8,4 @@ from register import register_user
 
 # print(register_user("tenant", "tenant!", "C","D","c@d.e"))
 
-print(register_user("manager", "manager!", "E","F","e@f.g"))
+print(register_user("frontdesk", "frontdesk!", "E","F","e@f.g", role_name="FrontDeskStaff"))
