@@ -21,6 +21,11 @@ def login(username, password):
         if not user:
             return "Invalid"
 
+        if user.get('account_status') != 'Active':
+            if user.get('role_id') == 6:
+                return "PendingApproval"
+            return "Inactive"
+
         if verify_password(pass_val, user['password_hash']):
             return user
         else:

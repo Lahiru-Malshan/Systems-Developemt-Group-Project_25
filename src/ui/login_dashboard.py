@@ -85,6 +85,10 @@ def main(page: ft.Page):
             page.snack_bar = ft.SnackBar(ft.Text(f"Welcome back, {result.get('username')}!"))
             page.snack_bar.open = True
             redirect_by_role(result)
+        elif result == "PendingApproval":
+            error_text.value = "Your account is waiting for front desk approval"
+        elif result == "Inactive":
+            error_text.value = "Your account is inactive"
         elif result == "informationError":
             error_text.value = "Information is missing"
         else:
