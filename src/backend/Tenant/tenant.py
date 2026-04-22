@@ -1,3 +1,5 @@
+# Elena Ho - 25044389
+
 import bcrypt
 from datetime import datetime
 from db import get_db_connection
@@ -115,19 +117,28 @@ class TenantBackend:
             return False, str(ex)
 
     def get_dashboard_stats(self):
-        payments = self.get_payments()
-        next_due = "£1,200"
-        payment_status = "On Time"
-        unread = sum(1 for p in self.get_notifications() if p.get("unread"))
-        if payments:
-            pending_count = sum(1 for p in payments if p.get("status") == "Pending")
-            if pending_count > 0:
-                next_due = f"£{sum(p['amount'] for p in payments if p['status'] == 'Pending'):.2f}"
-                payment_status = "Overdue" if pending_count > 1 else "Pending"
+        invoices = self.get_invoices()
+        complaints = self.get_complaints()
+        next_due = "£0.00"
+        payment_status = "All Paid"
+        open_complaints_count = len([c for c in complaints if c.get("status", "").lower() == "open"])
+        
+        # Find unpaid invoices
+        unpaid = [inv for inv in invoices if inv.get("status") != "Paid"]
+        if unpaid:
+            # Get the first unpaid invoice (most recent)
+            next_inv = unpaid[0]
+            next_due = f"£{next_inv.get('amount', 0):.2f}"
+            # Check if overdue based on status
+            if next_inv.get("status") == "Late":
+                payment_status = "Overdue"
+            else:
+                payment_status = "Pending"
+        
         return {
             "next_rent_due": next_due,
             "payment_status": payment_status,
-            "unread_notifications": unread,
+            "open_complaints": open_complaints_count,
         }
 
     def get_payments(self):
@@ -290,14 +301,6 @@ class TenantBackend:
             return fetch_notifications_for_user(self.user_id)
         except Exception:
             return []
-
-    def mark_notification_read(self, notification_id):
-        try:
-            from .notifications import mark_notification_read as _mark
-
-            return bool(_mark(notification_id))
-        except Exception:
-            return False
 
     def get_tenant_record(self):
         if self.user_id is None:

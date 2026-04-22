@@ -1,4 +1,3 @@
-# Elena Ho - 25044389
 
 import sys
 import os

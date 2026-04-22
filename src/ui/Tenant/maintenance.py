@@ -31,18 +31,29 @@ def fetch_maintenance_requests(dash):
             ])
         return formatted
 
-    # Fallback: query global maintenance requests (not tenant scoped)
+    # Fallback: query tenant-specific maintenance requests
     conn = None
     cursor = None
 
     try:
+        # Get tenant_id from backend if available
+        tenant_id = None
+        if hasattr(dash, "backend"):
+            tenant_record = dash.backend.get_tenant_record()
+            if tenant_record:
+                tenant_id = tenant_record.get("tenant_id")
+        
+        if not tenant_id:
+            return []
+        
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
-            SELECT request_id, description, status, reported_at, resolved_at
+            SELECT request_id, apartment_id, description, status, reported_at, resolved_at
             FROM maintenance_requests
+            WHERE tenant_id = %s
             ORDER BY request_id ASC
-        """)
+        """, (tenant_id,))
 
         records = cursor.fetchall()
         formatted_records = []
@@ -97,13 +108,12 @@ def show_maintenance(dash, *args):
     rows = []
     for m in maintenance_data:
         p_color = ft.Colors.RED_700 if m[3] == "High" else ft.Colors.ORANGE_700 if m[3] == "Medium" else ft.Colors.BLUE_GREY_400
-        s_color = ft.Colors.BLUE_700 if m[4] == "In Progress" else ft.Colors.GREEN_700 if m[4] == "Completed" else ft.Colors.GREY_600
+        s_color = ft.Colors.BLUE_700 if m[4] == "In Progress" else ft.Colors.GREEN_700 if m[4] == "Resolved" else ft.Colors.GREY_600
 
         rows.append(
             ft.DataRow(
                 cells=[
                     ft.DataCell(ft.Text(f"#{m[0]}", weight="w500", color=TEXT_DARK)),
-                    ft.DataCell(ft.Text(m[1], weight="w500", color=TEXT_DARK)),
                     ft.DataCell(ft.Container(content=ft.Text(m[2], weight="w500", color=TEXT_DARK, overflow=ft.TextOverflow.ELLIPSIS), width=200)),
                     ft.DataCell(ft.Text(m[3], color=p_color, weight="bold")),
                     ft.DataCell(ft.Container(content=ft.Text(m[4], color="white", size=10, weight="bold"), bgcolor=s_color, padding=ft.padding.symmetric(vertical=4, horizontal=10), border_radius=15)),
@@ -122,19 +132,18 @@ def show_maintenance(dash, *args):
                 heading_row_color=ft.Colors.BLUE_GREY_50,
                 columns=[
                     ft.DataColumn(ft.Text("ID", weight="bold", color=ft.Colors.BLUE_900)),
-                    ft.DataColumn(ft.Text("Category", weight="bold", color=ft.Colors.BLUE_900)),
                     ft.DataColumn(ft.Text("Description", weight="bold", color=ft.Colors.BLUE_900)),
                     ft.DataColumn(ft.Text("Priority", weight="bold", color=ft.Colors.BLUE_900)),
                     ft.DataColumn(ft.Text("Status", weight="bold", color=ft.Colors.BLUE_900)),
                     ft.DataColumn(ft.Text("Reported", weight="bold", color=ft.Colors.BLUE_900)),
-                    ft.DataColumn(ft.Text("Completed", weight="bold", color=ft.Colors.BLUE_900)),
+                    ft.DataColumn(ft.Text("Resolved", weight="bold", color=ft.Colors.BLUE_900)),
                 ],
                 rows=rows,
             )
         ], scroll=ft.ScrollMode.AUTO)
     )
 
-    status_counts = {"Pending": 0, "In Progress": 0, "Completed": 0}
+    status_counts = {"Pending": 0, "In Progress": 0, "Resolved": 0}
     for m in maintenance_data:
         st = m[4]
         if st in status_counts:
@@ -144,12 +153,44 @@ def show_maintenance(dash, *args):
 
     total = sum(status_counts.values()) or 1
     sections = []
-    if status_counts["In Progress"] > 0:
-        sections.append(PieChartSection(int(status_counts["In Progress"] / total * 100), title=f"{int(status_counts["In Progress"] / total * 100)}%", color=ft.Colors.BLUE_700, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
-    if status_counts["Completed"] > 0:
-        sections.append(PieChartSection(int(status_counts["Completed"] / total * 100), title=f"{int(status_counts["Completed"] / total * 100)}%", color=ft.Colors.GREEN_700, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
-    if status_counts["Pending"] > 0:
-        sections.append(PieChartSection(int(status_counts["Pending"] / total * 100), title=f"{int(status_counts["Pending"] / total * 100)}%", color=ft.Colors.GREY_600, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white")))
+    
+    # Calculate percentages ensuring they add up to 100%
+    percentages = {}
+    remaining = 100
+    statuses_with_data = []
+    
+    for status in ["In Progress", "Resolved", "Pending"]:
+        if status_counts[status] > 0:
+            statuses_with_data.append(status)
+    
+    # Calculate percentages for each status with data
+    for i, status in enumerate(statuses_with_data):
+        if i == len(statuses_with_data) - 1:  # Last one gets the remainder
+            percentages[status] = remaining
+        else:
+            pct = int(status_counts[status] / total * 100)
+            percentages[status] = pct
+            remaining -= pct
+    
+    # Create sections
+    color_map = {
+        "In Progress": ft.Colors.BLUE_700,
+        "Resolved": ft.Colors.GREEN_700,
+        "Pending": ft.Colors.GREY_600
+    }
+    
+    for status in ["In Progress", "Resolved", "Pending"]:
+        if status_counts[status] > 0 and percentages.get(status, 0) > 0:
+            sections.append(
+                PieChartSection(
+                    percentages[status],
+                    title=f"{percentages[status]}%",
+                    color=color_map[status],
+                    radius=40,
+                    title_style=ft.TextStyle(size=12, weight="bold", color="white")
+                )
+            )
+    
     if not sections:
         sections = [PieChartSection(100, title="100%", color=ft.Colors.GREY_400, radius=40, title_style=ft.TextStyle(size=12, weight="bold", color="white"))]
 
@@ -170,7 +211,7 @@ def show_maintenance(dash, *args):
             ft.Container(content=pie_chart, height=200),
             ft.Column([
                 ft.Row([ft.Container(width=12, height=12, bgcolor=ft.Colors.BLUE_700, border_radius=3), ft.Text("In Progress", weight="bold", size=12, color=ft.Colors.BLUE_700)]),
-                ft.Row([ft.Container(width=12, height=12, bgcolor=ft.Colors.GREEN_700, border_radius=3), ft.Text("Completed", weight="bold", size=12, color=ft.Colors.GREEN_700)]),
+                ft.Row([ft.Container(width=12, height=12, bgcolor=ft.Colors.GREEN_700, border_radius=3), ft.Text("Resolved", weight="bold", size=12, color=ft.Colors.GREEN_700)]),
                 ft.Row([ft.Container(width=12, height=12, bgcolor=ft.Colors.GREY_600, border_radius=3), ft.Text("Pending", weight="bold", size=12, color=ft.Colors.GREY_600)]),
             ], spacing=10)
         ])
@@ -188,7 +229,7 @@ def show_maintenance(dash, *args):
                     ft.ListTile(
                         leading=ft.Icon(ft.Icons.BUILD_CIRCLE_ROUNDED, color=ACCENT_BLUE),
                         title=ft.Text(f"Request #{m[0]}", weight="bold", color=TEXT_DARK),
-                        subtitle=ft.Text(f"{m[1]} - {m[5]}"),
+                        subtitle=ft.Text(f"{m[5]}"),
                     )
                     for m in maintenance_data[:5]
                 ]

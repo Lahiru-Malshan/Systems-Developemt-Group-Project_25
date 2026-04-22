@@ -9,6 +9,7 @@ from .payments import *
 from .maintenance import *
 from .settings import *
 from .notifications import *
+from .complaints import *
 from backend.Tenant.tenant import TenantBackend
 from flet_charts import PieChart, PieChartSection
 import flet as ft
@@ -34,6 +35,10 @@ class TenantDashboard(BaseDashboard):
         )
 
         self.create_nav_btn(
+            "Complaints",ft.Icons.FEEDBACK_ROUNDED,lambda _: self.switch_page("Complaints", "File and track your complaints", show_complaints)
+        )
+
+        self.create_nav_btn(
             "Notifications",ft.Icons.NOTIFICATIONS_ROUNDED,lambda _: self.switch_page("Notifications", "Stay updated with latest news", show_notifications)
         )
 
@@ -45,23 +50,23 @@ class TenantDashboard(BaseDashboard):
         
 # FUNCTIONS TO DISPLAY CONTENT
     def show_dashboard(self):
-        # STAT CARDS
-        stats = self.backend.get_dashboard_stats() if hasattr(self, "backend") else {"next_rent_due": "£1,200", "payment_status": "On Time", "unread_notifications": 3}
-        next_rent_due = stats.get("next_rent_due", "£1,200")
-        payment_status = stats.get("payment_status", "On Time")
-        unread_count = stats.get("unread_notifications", 0)
+        # STAT CARDS - Get real data from backend (based on unpaid invoices)
+        stats = self.backend.get_dashboard_stats()
+        next_rent_due = stats.get("next_rent_due", "£0.00")
+        payment_status = stats.get("payment_status", "All Paid")
+        open_complaints = stats.get("open_complaints", 0)
 
         stat_cards = ft.Row(
             spacing=20,
             controls=[
                 self.create_stat_card("Next Rent Due", next_rent_due, ft.Icons.CALENDAR_MONTH_ROUNDED),
                 self.create_stat_card("Payment Status", payment_status, ft.Icons.CHECK_CIRCLE_ROUNDED),
-                self.create_stat_card("Unread Notifs", f"{unread_count} New", ft.Icons.ERROR_OUTLINE_ROUNDED, highlight=True),
+                self.create_stat_card("Complaints", f"{open_complaints} Open", ft.Icons.FEEDBACK_ROUNDED, highlight=True),
             ]
         )
         
         # CHART + TABLE AREA (Payments list + Announcements from DB)
-        payments_list = (self.backend.get_payments() if hasattr(self, "backend") else [])
+        payments_list = self.backend.get_payments()
         payment_controls = [
             ft.Text("Payments History", size=16, weight=ft.FontWeight.BOLD, color=TEXT_DARK),
             ft.Divider(height=1, color="#F3F4F6")
@@ -122,8 +127,9 @@ class TenantDashboard(BaseDashboard):
 
         chart_table_row = ft.Row(spacing=20, controls=[payments_container, announcements_container])
         self.content_column.controls = [
-            stat_cards,chart_table_row
+            stat_cards, chart_table_row
         ]
+        self.page.update()
 
     def show_settings(self, active_tab="My Profile"):
         if not isinstance(active_tab, str):

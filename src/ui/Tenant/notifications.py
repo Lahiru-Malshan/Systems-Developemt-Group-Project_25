@@ -75,14 +75,20 @@ def apply_notification_filters(dash, e=None):
     # --- CONNECT DATA (DICTIONARY) ---
     raw_data = dash.backend.get_notifications()
 
-    filtered = SearchEngine.apply_logic(raw_data, filters={"type": dash.type_filter.value})
+    # Filter by type manually
+    type_filter = dash.type_filter.value
+    
+    if type_filter == "All Types":
+        filtered = raw_data
+    else:
+        filtered = [n for n in raw_data if n.get("type") == type_filter]
 
     time_map = {"Last 1 Week": 7, "Last 2 Weeks": 14, "Last 1 Month": 30, "Last 3 Months": 90}
     if dash.time_filter.value != "All Time":
         max_days = time_map.get(dash.time_filter.value, 999)
         filtered = [n for n in filtered if n["days"] <= max_days]
 
-    final_list = sorted(filtered, key=lambda x: (not x["unread"], x["days"]))
+    final_list = sorted(filtered, key=lambda x: x["days"])
 
     dash.notif_list_area.controls.clear()
 
@@ -114,7 +120,7 @@ def apply_notification_filters(dash, e=None):
                 ft.Container(
                     padding=ft.Padding(15, 12, 15, 12),
                     border_radius=10,
-                    bgcolor=ft.Colors.BLUE_50 if item["unread"] else ft.Colors.TRANSPARENT,
+                    bgcolor=ft.Colors.TRANSPARENT,
                     content=ft.Row([
                         ft.Container(
                             content=ft.Text(item["type"].upper(), size=9, weight="bold", color="white"),
@@ -127,7 +133,6 @@ def apply_notification_filters(dash, e=None):
                         ], expand=True, spacing=2),
                         ft.Column([
                             ft.Text(item["date"], size=12, weight="bold", color=ft.Colors.GREY_400),
-                            ft.Icon(ft.Icons.CIRCLE, color=ft.Colors.BLUE_600, size=12) if item["unread"] else ft.Container()
                         ], horizontal_alignment=ft.CrossAxisAlignment.END)
                     ])
                 )

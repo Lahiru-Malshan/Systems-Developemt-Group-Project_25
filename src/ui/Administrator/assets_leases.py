@@ -1,4 +1,3 @@
-# Elena Ho - 25044389
 #Lahiru_Malshan - 25044389
 
 import sys

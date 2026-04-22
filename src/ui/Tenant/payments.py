@@ -29,8 +29,10 @@ def show_payments(dash, *args):
     dash.content_column.controls.clear()
 
     outstanding = sum(inv.get("amount", 0) for inv in invoices if inv.get("status") != "Paid")
-    last_paid = next((t for t in transactions if t.get("status") == "Paid"), None)
-    last_paid_label = f"£{last_paid['amount']:,.2f} ({last_paid['date']})" if last_paid else "£0.00"
+    # Get the most recent paid invoice
+    paid_invoices = [inv for inv in invoices if inv.get("status") == "Paid"]
+    last_paid = paid_invoices[0] if paid_invoices else None
+    last_paid_label = f"£{last_paid['amount']:,.2f} ({last_paid['issue_date']})" if last_paid else "£0.00"
 
     # 1. Balance Overview (Cards)
 
@@ -53,7 +55,7 @@ def show_payments(dash, *args):
         invoice_rows.append(
             ft.DataRow(
                 cells=[
-                    ft.DataCell(ft.Text(str(inv.get("invoice_id", "")), weight=ft.FontWeight.W_500)),
+                    ft.DataCell(ft.Text(str(inv.get("invoice_id", "")), weight=ft.FontWeight.W_500, color=TEXT_DARK)),
                     ft.DataCell(ft.Text(str(inv.get("issue_date", "")), weight=ft.FontWeight.W_500, color=TEXT_DARK)),
                     ft.DataCell(ft.Text(str(inv.get("due_date", "")), weight=ft.FontWeight.W_500, color=TEXT_DARK)),
                     ft.DataCell(ft.Text(f"£{inv.get('amount', 0):,.2f}", weight=ft.FontWeight.W_500, color=TEXT_DARK)),
@@ -155,10 +157,11 @@ def show_payments(dash, *args):
 
 def open_payment_modal(dash, invoices=None):
     unpaid = [inv for inv in (invoices or []) if inv.get("status") != "Paid"]
-    invoice_options = [ft.dropdown.Option(str(inv.get("invoice_id"))) for inv in unpaid] if unpaid else [ft.dropdown.Option("0")]
+    sorted_unpaid = sorted(unpaid, key=lambda x: x.get("invoice_id", 0))
+    invoice_options = [ft.dropdown.Option(str(inv.get("invoice_id"))) for inv in sorted_unpaid] if sorted_unpaid else [ft.dropdown.Option("0")]
     
-    initial_invoice_id = str(unpaid[0].get("invoice_id")) if unpaid else "0"
-    initial_amount = str(unpaid[0].get("amount", 0)) if unpaid else "0"
+    initial_invoice_id = str(sorted_unpaid[0].get("invoice_id")) if sorted_unpaid else "0"
+    initial_amount = str(sorted_unpaid[0].get("amount", 0)) if sorted_unpaid else "0"
     
     invoice_dropdown = ft.Dropdown(label="Invoice", value=initial_invoice_id, options=invoice_options, border_color=ACCENT_BLUE)
     ref_amount = ft.TextField(label="Amount", prefix=ft.Text("£ "), value=initial_amount, keyboard_type=ft.KeyboardType.NUMBER, border_color=ACCENT_BLUE)
