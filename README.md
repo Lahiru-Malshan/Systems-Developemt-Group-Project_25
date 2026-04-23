@@ -31,7 +31,7 @@ Developed as part of the Software Development Group Project (SDGP) at UWE Bristo
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/ductrung3004/Systems-Developemt-Group-Project.git
+git clone https://github.com/Lahiru-Malshan/Systems-Developemt-Group-Project_25
 cd Systems-Developemt-Group-Project
 ```
 
