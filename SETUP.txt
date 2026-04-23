@@ -103,52 +103,49 @@ The login screen will appear. Use the credentials below.
 SECTION 6 — DEFAULT LOGIN CREDENTIALS
 ----------------------------------------------------------------
 
+This section includes the username and password to run the demonstration.
+
   NOTE: Staff accounts are created by the Administrator.
-  Staff username  = NI number (lowercase, letters and digits only)
-  Staff password  = Paragon@ followed by the last 4 characters
-                    of the NI number
-  Example: NI = AB123456C → username: ab123456c
-                           → password: Paragon@456C
 
   ADMINISTRATOR
   -------------
-  Username : (NI-based username set by system)
-  Password : Paragon@[last 4 of NI]
-  Access   : Full system — broadcasts, user management,
+   Username: admin
+   Password: admin!
+   Access  : Full system — broadcasts, user management,
              apartments, leases, operations
 
   FRONT DESK STAFF
   ----------------
-  Username : (NI-based username set by system)
-  Password : Paragon@[last 4 of NI]
-  Access   : Approve tenants, assign apartments, parcels,
+   Username: frontdesk
+   Password: frontdesk!
+   Access  : Approve tenants, assign apartments, parcels,
              maintenance requests
 
   TENANT (Self-registered)
   ------------------------
-  Username : Chosen at registration
-  Password : Chosen at registration
-  Status   : Account starts Inactive — must be approved by
+   Username: tenant
+   Password: tenant!
+   Status  : New account starts Inactive — must be approved by
              Front Desk before login is allowed
 
   MAINTENANCE STAFF
   -----------------
-  Username : (NI-based username set by system)
-  Password : Paragon@[last 4 of NI]
-  Access   : View and resolve assigned work orders
+   Username: maint1
+   Password: maint1!
+   Access  : View and resolve assigned work orders
 
   FINANCE MANAGER
   ---------------
-  Username : (NI-based username set by system)
-  Password : Paragon@[last 4 of NI]
-  Access   : Invoices, transactions, financial reports,
+   Username: finance1
+   Password: finance1!
+   Access  : Invoices, transactions, financial reports,
              monthly billing, VAT reports
 
   MANAGER
   -------
-  Username : (NI-based username set by system)
-  Password : Paragon@[last 4 of NI]
-  Access   : Occupancy analytics, financial reports,
+   Username: manager1
+   Password: manager1!
+   Access  : Occupancy analytics, financial reports,
              expansion planning (read-only overview)
 
 
@@ -157,7 +154,7 @@ SECTION 7 — SYSTEM WORKFLOW OVERVIEW
 ----------------------------------------------------------------
 
   1. Administrator creates staff accounts (Front Desk, Finance,
-     Maintenance, Manager) via User Management.
+     Maintenance) via User Management.
 
   2. Tenant registers via the Register screen on the login page.
      Their account is created with status Inactive.
@@ -200,7 +197,7 @@ SECTION 8 — PROJECT STRUCTURE
   ├── backend/
   │   ├── FrontDesk/frontdesk.py     Front Desk backend logic
   │   ├── Maintance/                 Maintenance backend logic
-  │   └── Tenant/tenant.py          Tenant backend logic
+  │   └── Tenant/tenant.py           Tenant backend logic
   ├── logic/
   │   ├── notifications.py           Notification system
   │   └── search.py                  Search/filter engine
@@ -231,12 +228,6 @@ SECTION 9 — ADDITIONAL NOTES
 
   - The .env file must exist in the project root before running.
     Do not commit your .env file to version control.
-
-  - All program files include the student ID and name of the
-    author in a comment at the top of each file.
-
-  - Python virtual environment folders (venv/, .venv/) and the
-    build/ folder are excluded from the submission ZIP.
 
 ================================================================
   END OF SETUP GUIDE
